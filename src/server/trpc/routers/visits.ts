@@ -25,7 +25,7 @@ export const visitsRouter = router({
         ...(clientId && { clientId }),
         ...(status && { status }),
         ...((startDate || endDate) && {
-          date: {
+          scheduledAt: {
             ...(startDate && { gte: startDate }),
             ...(endDate && { lte: endDate })
           }
@@ -37,8 +37,8 @@ export const visitsRouter = router({
           where: whereClause,
           skip,
           take: limit,
-          include: { client: { select: { name: true, type: true } } },
-          orderBy: { date: 'asc' }
+          include: { client: { select: { name: true } } },
+          orderBy: { scheduledAt: 'asc' }
         }),
         ctx.db.visit.count({ where: whereClause })
       ]);
@@ -51,7 +51,7 @@ export const visitsRouter = router({
     .query(async ({ ctx, input }) => {
       const visit = await ctx.db.visit.findFirst({
         where: { id: input.id, ...tenantWhere(ctx.tenantId) },
-        include: { client: true, assignedTo: true }
+        include: { client: true, assignedUser: true }
       });
       if (!visit) throw new TRPCError({ code: 'NOT_FOUND' });
       return visit;
@@ -60,7 +60,7 @@ export const visitsRouter = router({
   create: tenantProcedure
     .input(z.object({
       clientId: z.string(),
-      date: z.date(),
+      scheduledAt: z.date(),
       notes: z.string().optional(),
       status: VisitStatusEnum.default('PENDING_CONFIRM'),
       price: z.number().optional()
@@ -77,7 +77,7 @@ export const visitsRouter = router({
   update: tenantProcedure
     .input(z.object({
       id: z.string(),
-      date: z.date().optional(),
+      scheduledAt: z.date().optional(),
       notes: z.string().optional(),
       price: z.number().optional()
     }))
