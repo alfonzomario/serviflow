@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "agenda": "Agenda",
+    "clients": "Clients",
+    "requests": "Requests",
+    "pending": "Pending",
+    "finance": "Finance",
+    "history": "History",
+    "notes": "Notes",
+    "aiAdvisor": "AI Advisor",
+    "team": "Team",
+    "settings": "Settings",
+    "import": "Import"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "noResults": "No results found",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "create": "Create",
+    "update": "Update"
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "email": "Email",
+    "password": "Password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password?",
+    "register": "Register",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Log in to your account"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalRevenue": "Total Revenue",
+    "pendingVisits": "Pending Visits",
+    "completedVisits": "Completed Visits",
+    "activeClients": "Active Clients",
+    "pendingRequests": "Pending Requests"
+  },
+  "visits": {
+    "title": "Visits",
+    "schedule": "Schedule",
+    "status": "Status",
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "skipped": "Skipped"
+  },
+  "clients": {
+    "title": "Clients",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "type": "Type",
+    "contract": "Contract",
+    "onDemand": "On Demand",
+    "active": "Active",
+    "inactive": "Inactive"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "dashboard": "Panel",
+    "agenda": "Agenda",
+    "clients": "Clientes",
+    "requests": "Solicitudes",
+    "pending": "Pendientes",
+    "finance": "Finanzas",
+    "history": "Historial",
+    "notes": "Notas",
+    "aiAdvisor": "Asesor IA",
+    "team": "Equipo",
+    "settings": "Ajustes",
+    "import": "Importar"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "loading": "Cargando...",
+    "noResults": "No hay resultados",
+    "confirm": "Confirmar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "create": "Crear",
+    "update": "Actualizar"
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "rememberMe": "Recordarme",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "register": "Registrarse",
+    "loginTitle": "Bienvenido de nuevo",
+    "loginSubtitle": "Inicia sesión en tu cuenta"
+  },
+  "dashboard": {
+    "title": "Panel de Control",
+    "totalRevenue": "Ingresos Totales",
+    "pendingVisits": "Visitas Pendientes",
+    "completedVisits": "Visitas Completadas",
+    "activeClients": "Clientes Activos",
+    "pendingRequests": "Solicitudes Pendientes"
+  },
+  "visits": {
+    "title": "Visitas",
+    "schedule": "Programar",
+    "status": "Estado",
+    "pending": "Pendiente",
+    "confirmed": "Confirmado",
+    "completed": "Completado",
+    "cancelled": "Cancelado",
+    "skipped": "Omitido"
+  },
+  "clients": {
+    "title": "Clientes",
+    "name": "Nombre",
+    "phone": "Teléfono",
+    "email": "Correo",
+    "address": "Dirección",
+    "type": "Tipo",
+    "contract": "Contrato",
+    "onDemand": "A demanda",
+    "active": "Activo",
+    "inactive": "Inactivo"
+  }
+}

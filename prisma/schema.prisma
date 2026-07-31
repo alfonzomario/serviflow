@@ -1,0 +1,331 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ENUMS
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  ADMIN
+  OPERATOR
+  CLIENT
+}
+enum ClientRelationshipType {
+  CONTRACT
+  ON_DEMAND
+}
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+}
+enum VisitStatus {
+  PENDING_CONFIRM
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  SKIPPED
+}
+enum PaymentStatus {
+  PENDING
+  PAID
+  WAIVED
+}
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+enum RequestUrgency {
+  LOW
+  MEDIUM
+  HIGH
+}
+enum RequestStatus {
+  PENDING
+  SCHEDULED
+  CLOSED
+}
+enum ImportStatus {
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+  ROLLED_BACK
+}
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  slug      String   @unique @db.VarChar(100)
+  industry  String?  @db.VarChar(100)
+  logoUrl   String?  @map("logo_url")
+  timezone  String   @default("America/Argentina/Buenos_Aires") @db.VarChar(50)
+  country   String   @default("AR") @db.VarChar(2)
+  currency  String   @default("ARS") @db.VarChar(3)
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users      User[]
+  clients    Client[]
+  visits     Visit[]
+  requests   ServiceRequest[]
+  transactions Transaction[]
+  notes      Note[]
+  auditLogs  AuditLog[]
+  settings   TenantSettings?
+  subscription Subscription?
+  importHistory ImportHistory[]
+
+  @@map("tenants")
+}
+
+model Subscription {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @unique @map("tenant_id") @db.Uuid
+  status              String   @default("active") @db.VarChar(20)
+  planName            String   @default("pro") @map("plan_name") @db.VarChar(50)
+  monthlyPrice        Decimal  @default(0) @map("monthly_price") @db.Decimal(10,2)
+  currentPeriodStart  DateTime @map("current_period_start")
+  currentPeriodEnd    DateTime @map("current_period_end")
+  paymentProviderId   String?  @map("payment_provider_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  email           String   @db.VarChar(255)
+  name            String   @db.VarChar(255)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  role            UserRole
+  clientId        String?  @map("client_id") @db.Uuid
+  permissions     Json     @default("{}")
+  avatarUrl       String?  @map("avatar_url")
+  isActive        Boolean  @default(true) @map("is_active")
+  sessionVersion  Int      @default(1) @map("session_version")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant         Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client         Client? @relation("UserClient", fields: [clientId], references: [id])
+  assignedVisits Visit[] @relation("AssignedVisits")
+  createdNotes   Note[]
+  auditLogs      AuditLog[]
+  importHistory  ImportHistory[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+  @@map("users")
+}
+
+model Client {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  name              String   @db.VarChar(255)
+  email             String?  @db.VarChar(255)
+  phone             String?  @db.VarChar(50)
+  address           String?
+  lat               Decimal? @db.Decimal(10,7)
+  lng               Decimal? @db.Decimal(10,7)
+  relationshipType  ClientRelationshipType @default(ON_DEMAND) @map("relationship_type")
+  status            ClientStatus @default(ACTIVE)
+  serviceTypes      String[] @map("service_types")
+  preferredDays     String[] @map("preferred_days")
+  preferredSlots    String[] @map("preferred_slots")
+  notes             String?
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users        User[] @relation("UserClient")
+  visits       Visit[]
+  requests     ServiceRequest[]
+  transactions Transaction[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, relationshipType])
+  @@map("clients")
+}
+
+model Visit {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  clientId          String   @map("client_id") @db.Uuid
+  assignedUserId    String?  @map("assigned_user_id") @db.Uuid
+  requestId         String?  @map("request_id") @db.Uuid
+  scheduledAt       DateTime @map("scheduled_at")
+  durationMinutes   Int      @default(45) @map("duration_minutes")
+  serviceType       String?  @map("service_type") @db.VarChar(100)
+  status            VisitStatus @default(PENDING_CONFIRM)
+  paymentStatus     PaymentStatus @default(PENDING) @map("payment_status")
+  price             Decimal  @default(0) @db.Decimal(10,2)
+  priceWaived       Boolean  @default(false) @map("price_waived")
+  serviceDetails    String[] @map("service_details")
+  applicationNumber Int?     @map("application_number")
+  totalApplications Int?     @map("total_applications")
+  notes             String?
+  calendarEventId   String?  @map("calendar_event_id") @db.VarChar(255)
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client       Client @relation(fields: [clientId], references: [id])
+  assignedUser User?  @relation("AssignedVisits", fields: [assignedUserId], references: [id])
+  request      ServiceRequest? @relation(fields: [requestId], references: [id])
+  transactions Transaction[]
+
+  @@index([tenantId, status, scheduledAt])
+  @@index([tenantId, clientId])
+  @@index([tenantId, assignedUserId])
+  @@index([tenantId, scheduledAt])
+  @@map("visits")
+}
+
+model ServiceRequest {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  clientId      String   @map("client_id") @db.Uuid
+  clientName    String?  @map("client_name") @db.VarChar(255)
+  serviceTypes  String[] @map("service_types")
+  urgency       RequestUrgency @default(MEDIUM)
+  status        RequestStatus @default(PENDING)
+  comment       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client  Client @relation(fields: [clientId], references: [id])
+  visits  Visit[]
+
+  @@index([tenantId, status])
+  @@map("service_requests")
+}
+
+model Transaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  visitId         String?  @map("visit_id") @db.Uuid
+  clientId        String?  @map("client_id") @db.Uuid
+  type            TransactionType
+  amount          Decimal  @db.Decimal(10,2)
+  category        String?  @db.VarChar(100)
+  transactionDate DateTime @map("transaction_date") @db.Date
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  visit   Visit?  @relation(fields: [visitId], references: [id])
+  client  Client? @relation(fields: [clientId], references: [id])
+
+  @@index([tenantId, transactionDate])
+  @@index([tenantId, type])
+  @@map("transactions")
+}
+
+model Note {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  createdById     String   @map("created_by") @db.Uuid
+  content         String
+  reminderAt      DateTime? @map("reminder_at")
+  reminderSentAt  DateTime? @map("reminder_sent_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId, reminderAt])
+  @@map("notes")
+}
+
+model TenantSettings {
+  id                      String  @id @default(uuid()) @db.Uuid
+  tenantId                String  @unique @map("tenant_id") @db.Uuid
+  baseAddress             String? @map("base_address")
+  baseLat                 Decimal? @map("base_lat") @db.Decimal(10,7)
+  baseLng                 Decimal? @map("base_lng") @db.Decimal(10,7)
+  aiProvider              String? @map("ai_provider") @db.VarChar(20)
+  aiApiKeyEncrypted       String? @map("ai_api_key_encrypted")
+  googleCalendarId        String? @map("google_calendar_id")
+  calendarEventTitlePrefix String? @map("calendar_event_title_prefix")
+  calendarEventDuration   Int     @default(45) @map("calendar_event_duration")
+  visitArchiveYears       Int     @default(2) @map("visit_archive_years")
+  adminEmail              String? @map("admin_email")
+  workingHoursStart       String  @default("07:00") @map("working_hours_start") @db.VarChar(5)
+  workingHoursEnd         String  @default("15:00") @map("working_hours_end") @db.VarChar(5)
+  visitIntervalDays       Int     @default(15) @map("visit_interval_days")
+  customServiceTypes      Json    @default("[]") @map("custom_service_types")
+  customVisitStatuses     Json    @default("[]") @map("custom_visit_statuses")
+  brandPrimaryColor       String? @map("brand_primary_color") @db.VarChar(7)
+  brandSecondaryColor     String? @map("brand_secondary_color") @db.VarChar(7)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String   @db.VarChar(50)
+  entityType  String   @map("entity_type") @db.VarChar(50)
+  entityId    String?  @map("entity_id") @db.Uuid
+  changes     Json?    @default("{}")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+model ImportHistory {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  entityType       String   @map("entity_type") @db.VarChar(50)
+  fileName         String?  @map("file_name") @db.VarChar(255)
+  fileType         String?  @map("file_type") @db.VarChar(10)
+  totalRows        Int      @map("total_rows")
+  importedRows     Int      @map("imported_rows")
+  skippedRows      Int      @default(0) @map("skipped_rows")
+  errorRows        Int      @default(0) @map("error_rows")
+  errors           Json?    @default("[]")
+  columnMapping    Json?    @map("column_mapping")
+  duplicateStrategy String  @default("SKIP") @map("duplicate_strategy") @db.VarChar(20)
+  status           ImportStatus
+  startedAt        DateTime @default(now()) @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, startedAt])
+  @@map("import_history")
+}
