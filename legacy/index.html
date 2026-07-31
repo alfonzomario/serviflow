@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lozanor App</title>
+  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAIKADAAQAAAABAAAAIAAAAACshmLzAAAC50lEQVRYCe1US0hUURg+/7mvedwZXyNjM1OUaRYFSRFo44hQiwoqImjhop1J0YNKVJJo0MBeVia0ibZCCze2cmUplpFZERGEmoIzQzTpjDrjHe+953QUDZXrqLVo0ZzFeXz/Of/3n+//z0Eo1VIKpBRIKfCPFYA/4d+4/+4uDThTqOdKn2uv34KtmYeorgYDPVd7Z/15iu+biYB8Ip7oGn7hV5Jx4GRGI1t2mV+mor0dC6Z7c3bZ8QRMWW1Isve4Sh8em8WIgMsxb+uYScib5/Yk6dYdgEgyK0GwbCGa2uzyPfBiQS7XlbHHjHYQsFTvKb5sBixWUKJ9ypiYGkrCPWfiVtuw2J69704Ob7a1Ul15H+w6X23PPfEMKOEC4c7DNtOGSRbMGYrMMsLiSULUxqG+mleLzxvN16WAaLZUsds5kBqvcvmaj2PBWqxrij8b7RSxOtJKtMRnENMuIYoiOBFvMyJcjq05AE9pcz6T/hzRYm2s2N4Cb7rN5v2cFuuUnO6PVNh6FPRpP+ZMiMnfEXhTM7qczGjNG4FGGMH8DUwpr2nRarevpQJz5gIS/36AivJpTrTn6nS8PjYeLrJirk7XEu1GPoywNT1Dt7epCEwZr4kaf6RHhq/xWdsGEdG76dTAWbAXfEVUG2GpKST69MXgywstRkQrYWtIgR8jwdzAdI2gWLiBT99cy3LvRESdBjnvKQBYifKznOgz3cBJtZtKGjNWIjPCVw3AXZJ+hFX3QaIpt4Lv/GGEAKimDCBOLANO2ENVpSnUe/0LospNjCUXwXKlEdFKWNIUzP5yYMvpYaQOOhnyxnU0gVAE8ZBuWXCoR4MxancBUaPY5sh7jrCQn9B+7A5314UW9iQbkxYhFiUXBShkASCQnR+sAEwxJ/MH9LfTNOf8JXIoA2WOk3hJt+xg9r8PYNTT/80d8p5CnLSdUoLZ+55vZGGyZATgWSmMBUQcXfUDWnIwtUgpkFIgpcB/rcAv0hkFZcd2MvIAAAAASUVORK5CYII=">
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAIKADAAQAAAABAAAAIAAAAACshmLzAAAC50lEQVRYCe1US0hUURg+/7mvedwZXyNjM1OUaRYFSRFo44hQiwoqImjhop1J0YNKVJJo0MBeVia0ibZCCze2cmUplpFZERGEmoIzQzTpjDrjHe+953QUDZXrqLVo0ZzFeXz/Of/3n+//z0Eo1VIKpBRIKfCPFYA/4d+4/+4uDThTqOdKn2uv34KtmYeorgYDPVd7Z/15iu+biYB8Ip7oGn7hV5Jx4GRGI1t2mV+mor0dC6Z7c3bZ8QRMWW1Isve4Sh8em8WIgMsxb+uYScib5/Yk6dYdgEgyK0GwbCGa2uzyPfBiQS7XlbHHjHYQsFTvKb5sBixWUKJ9ypiYGkrCPWfiVtuw2J69704Ob7a1Ul15H+w6X23PPfEMKOEC4c7DNtOGSRbMGYrMMsLiSULUxqG+mleLzxvN16WAaLZUsds5kBqvcvmaj2PBWqxrij8b7RSxOtJKtMRnENMuIYoiOBFvMyJcjq05AE9pcz6T/hzRYm2s2N4Cb7rN5v2cFuuUnO6PVNh6FPRpP+ZMiMnfEXhTM7qczGjNG4FGGMH8DUwpr2nRarevpQJz5gIS/36AivJpTrTn6nS8PjYeLrJirk7XEu1GPoywNT1Dt7epCEwZr4kaf6RHhq/xWdsGEdG76dTAWbAXfEVUG2GpKST69MXgywstRkQrYWtIgR8jwdzAdI2gWLiBT99cy3LvRESdBjnvKQBYifKznOgz3cBJtZtKGjNWIjPCVw3AXZJ+hFX3QaIpt4Lv/GGEAKimDCBOLANO2ENVpSnUe/0LospNjCUXwXKlEdFKWNIUzP5yYMvpYaQOOhnyxnU0gVAE8ZBuWXCoR4MxancBUaPY5sh7jrCQn9B+7A5314UW9iQbkxYhFiUXBShkASCQnR+sAEwxJ/MH9LfTNOf8JXIoA2WOk3hJt+xg9r8PYNTT/80d8p5CnLSdUoLZ+55vZGGyZATgWSmMBUQcXfUDWnIwtUgpkFIgpcB/rcAv0hkFZcd2MvIAAAAASUVORK5CYII=">
+  
+  <!-- 0. Polyfill -->
+  <script>
+    window.process = { env: { NODE_ENV: 'production' } };
+  </script>
+
+  <!-- 1. Cargar Estilos (Tailwind CSS) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Config de Tailwind: paleta de marca + estados. Se carga antes del primer render.
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#003366',
+              dark: '#002244',
+              light: '#1d4ed8',
+              50: '#eff6ff',
+              100: '#dbeafe',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#003366',
+            },
+            // Colores semánticos para estados de visita y pago (uso consistente entre vistas)
+            statusPending: { bg: '#fef3c7', text: '#92400e', ring: '#fde68a' },      // POR_CONFIRMAR
+            statusConfirmed: { bg: '#dbeafe', text: '#1e40af', ring: '#bfdbfe' },    // CONFIRMADA
+            statusDone: { bg: '#dcfce7', text: '#166534', ring: '#bbf7d0' },         // REALIZADA
+            statusCancelled: { bg: '#fee2e2', text: '#991b1b', ring: '#fecaca' },    // CANCELADA
+            payPaid: { bg: '#dbeafe', text: '#1e3a8a', ring: '#bfdbfe' },            // PAGADO
+            payPending: { bg: '#fee2e2', text: '#991b1b', ring: '#fecaca' },         // PENDIENTE
+          }
+        }
+      },
+      safelist: [
+        'bg-statusPending-bg', 'text-statusPending-text', 'ring-statusPending-ring',
+        'bg-statusConfirmed-bg', 'text-statusConfirmed-text', 'ring-statusConfirmed-ring',
+        'bg-statusDone-bg', 'text-statusDone-text', 'ring-statusDone-ring',
+        'bg-statusCancelled-bg', 'text-statusCancelled-text', 'ring-statusCancelled-ring',
+        'bg-payPaid-bg', 'text-payPaid-text', 'ring-payPaid-ring',
+        'bg-payPending-bg', 'text-payPending-text', 'ring-payPending-ring',
+      ]
+    };
+  </script>
+  
+  <!-- 2. Cargar React y ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- 3. Cargar Babel -->
+  <script src="https://unpkg.com/@babel/standalone@7.26.9/babel.min.js"></script>
+
+  <style>
+    /* Design tokens (duplicados de la config de Tailwind para uso en CSS puro) */
+    :root {
+      --brand: #003366;
+      --brand-dark: #002244;
+      --brand-light: #1d4ed8;
+      --surface: #ffffff;
+      --surface-muted: #f3f4f6;
+      --border: #e5e7eb;
+      --text: #111827;
+      --text-muted: #6b7280;
+    }
+
+    html, body, #root { width: 100%; max-width: 100%; overflow-x: hidden; }
+    body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--surface-muted); margin: 0; color: var(--text); }
+    /* Loader */
+    .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid var(--brand); width: 40px; height: 40px; animation: spin 1s linear infinite; }
+    .loader-small { border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 2px solid white; width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* Scrollbar sutil */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Quitar flechas de inputs numéricos (precio, montos) */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+    
+    /* Animaciones */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes slideInRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    .animate-slide-in-right { animation: slideInRight 0.25s ease-out; }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+    .skeleton {
+      background: linear-gradient(90deg, #f1f5f9 0px, #e2e8f0 200px, #f1f5f9 400px);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s linear infinite;
+      border-radius: 6px;
+    }
+
+    /* Mejoras de input (foco consistente con la marca) */
+    input:focus, select:focus, textarea:focus { 
+        box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.12);
+    }
+    
+    /* Transiciones suaves */
+    * { transition-property: color, background-color, border-color, transform, box-shadow; }
+
+    /* Fade lateral en la barra de pestañas cuando hay scroll horizontal (solo mobile) */
+    .tabs-scroll-fade {
+      position: relative;
+    }
+    .tabs-scroll-fade::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0; width: 28px;
+      background: linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0));
+      pointer-events: none;
+    }
+    @media (min-width: 1024px) { .tabs-scroll-fade::after { display: none; } }
+
+    /* FAB (mobile) */
+    .fab {
+      position: fixed;
+      right: 16px;
+      bottom: 20px;
+      z-index: 40;
+      box-shadow: 0 10px 20px rgba(0,51,102,0.25), 0 6px 6px rgba(0,0,0,0.08);
+    }
+    @media (min-width: 1024px) { .fab { display: none; } }
+
+    /* Botón marcar realizada (colores fijos para mobile / CDN Tailwind) */
+    .btn-mark-realizada {
+      background-color: #16a34a;
+      color: #ffffff;
+    }
+    .btn-mark-realizada:hover { background-color: #15803d; }
+    .btn-mark-realizada.is-done {
+      background-color: #dcfce7;
+      color: #166534;
+      box-shadow: inset 0 0 0 2px #86efac;
+    }
+    .btn-mark-realizada.is-done:hover { background-color: #bbf7d0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- LÓGICA DE LA APP -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // (interno) versión del frontend
+    const UI_VERSION = '2026-05-26-historial-finanzas';
+    const ARCHIVE_LOG_KEY = 'lozanor_last_archive_v1';
+    const APP_LOGO_DATA_URI = "data:image/png;base64,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";
+
+    // --- UTILS ---
+    const TZ = 'America/Argentina/Buenos_Aires';
+    const BA_OFFSET = '-03:00';
+    const pad2 = (n) => String(n).padStart(2, '0');
+
+    const formatMoney = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(amount);
+
+    /** Mensaje corto para el usuario (sin stack trace ni JSON). */
+    const formatAppError = (err, fallback = 'No se pudo completar. Intentá de nuevo.') => {
+        let s = '';
+        if (err == null || err === '') return fallback;
+        if (typeof err === 'string') s = err;
+        else if (err && err.message) s = String(err.message);
+        else s = String(err);
+        s = s.replace(/^Error:\s*/i, '').replace(/^Exception:\s*/i, '').trim();
+        if (s.includes('AUTH_FORBIDDEN:')) return s.split('AUTH_FORBIDDEN:').pop().trim() || 'Sin permiso.';
+        if (s.includes('AUTH_REQUIRED:')) return 'Sesión expirada. Volvé a entrar.';
+        if (s.includes('ScriptError')) s = s.replace(/ScriptError:\s*/i, '').trim();
+        s = s.split('\n').map(l => l.trim()).filter(Boolean)[0] || s;
+        if (s.length > 120) s = s.slice(0, 117) + '…';
+        return s || fallback;
+    };
+
+    const visitStatusToast = (status, isNew) => {
+        if (status === 'CONFIRMADA') return 'Visita confirmada.';
+        if (status === 'REALIZADA') return 'Visita marcada como realizada.';
+        if (status === 'CANCELADA') return 'Visita cancelada.';
+        if (status === 'POR_CONFIRMAR') return isNew ? 'Visita agendada (por confirmar).' : 'Visita actualizada.';
+        return isNew ? 'Visita agendada.' : 'Cambios guardados.';
+    };
+
+    // Normalizar hora a HH:mm
+    const formatTime24h = (value) => {
+        if (value === null || value === undefined) return '09:00';
+        // Date
+        if (value instanceof Date && !isNaN(value.getTime())) {
+            return formatTime24h(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(value));
+        }
+        const s = String(value).trim();
+        if (!s) return '09:00';
+        // Already HH:mm or HH:mm:ss
+        if (s.includes(':')) {
+            const [hRaw, mRaw = '00'] = s.split(':');
+            const hh = String(parseInt(hRaw, 10) || 0).padStart(2, '0');
+            const mm = String(parseInt(mRaw, 10) || 0).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+        // Digits like "930" or "0930"
+        const digits = s.replace(/\D/g, '');
+        if (digits.length === 4) {
+            return `${digits.slice(0,2)}:${digits.slice(2,4)}`;
+        }
+        if (digits.length === 3) {
+            return `0${digits.slice(0,1)}:${digits.slice(1,3)}`;
+        }
+        if (digits.length <= 2) {
+            const hh = String(parseInt(digits, 10) || 9).padStart(2, '0');
+            return `${hh}:00`;
+        }
+        return '09:00';
+    };
+
+    // Normalizar listas (p.ej. pestTypes) a array de strings
+    const normalizeStringList = (value, fallbackSingle) => {
+        if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+        if (typeof value === 'string') {
+            const s = value.trim();
+            if (!s) return fallbackSingle ? [String(fallbackSingle).trim()].filter(Boolean) : [];
+            // si viene "A, B, C" lo separamos; si viene "A" queda como [A]
+            return s.split(',').map(x => x.trim()).filter(Boolean);
+        }
+        if (value !== null && value !== undefined && value !== '') return [String(value).trim()].filter(Boolean);
+        if (fallbackSingle !== null && fallbackSingle !== undefined && String(fallbackSingle).trim()) return [String(fallbackSingle).trim()];
+        return [];
+    };
+
+    // Parse robusto a millis para createdAt (ISO o DD/MM/YYYY HH:mm)
+    const toCreatedAtMillis = (createdAt) => {
+        if (!createdAt) return 0;
+        if (createdAt instanceof Date && !isNaN(createdAt.getTime())) return createdAt.getTime();
+        const s = String(createdAt).trim();
+        if (!s) return 0;
+        const msIso = Date.parse(s);
+        if (Number.isFinite(msIso)) return msIso;
+        const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+        if (m) {
+            const [, dd, mm, yyyy, hh = '0', mi = '0'] = m;
+            const ms = Date.parse(`${yyyy}-${pad2(mm)}-${pad2(dd)}T${pad2(hh)}:${pad2(mi)}:00-03:00`);
+            return Number.isFinite(ms) ? ms : 0;
+        }
+        return 0;
+    };
+
+    // Notas con auditoría: agrega una línea con el actor y timestamp
+    const appendStampedNote = (existingNotes, actorLabel, actorName, comment) => {
+        const base = String(existingNotes || '');
+        const c = String(comment || '').trim();
+        if (!c) return base;
+        const stamp = new Date().toLocaleString('es-AR');
+        const who = `${String(actorLabel || '').trim()} ${String(actorName || '').trim()}`.trim();
+        const line = `[${who} · ${stamp}] ${c}`;
+        return `${base}${base ? '\n\n' : ''}${line}`;
+    };
+    
+    // Formatear teléfono argentino
+    const formatPhone = (phone) => {
+        if (!phone) return '';
+        const cleaned = phone.toString().replace(/\D/g, '');
+        if (cleaned.length === 10) {
+            return cleaned.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+        }
+        if (cleaned.length === 11) {
+            return cleaned.replace(/(\d{2})(\d{4})(\d{4})(\d{1})/, '($1) $2-$3 ext. $4');
+        }
+        return phone;
+    };
+    
+    // Formatear dirección con mejor presentación
+    const formatAddress = (address) => {
+        if (!address) return '';
+        return address.split(',').map(s => s.trim()).join(', ');
+    };
+    
+    // Link a Google Maps
+    const mapsLink = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address || '')}`;
+    
+    // --- FECHAS / HORAS (siempre Buenos Aires, un solo criterio en toda la app) ---
+    const parseDateTimeParts = (value) => {
+        if (value === null || value === undefined || value === '') {
+            return { date: '', time: '09:00' };
+        }
+        if (typeof value === 'string') {
+            const s = value.trim();
+            if (!s) return { date: '', time: '09:00' };
+            const mSlash = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+            if (mSlash) {
+                const [, dd, mm, yyyy, hh, mi] = mSlash;
+                return {
+                    date: yyyy + '-' + pad2(mm) + '-' + pad2(dd),
+                    time: formatTime24h(hh !== undefined ? hh + ':' + mi : '09:00')
+                };
+            }
+            if (/[zZ]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) {
+                const ms = Date.parse(s);
+                if (Number.isFinite(ms)) {
+                    const inst = new Date(ms);
+                    return {
+                        date: new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(inst),
+                        time: formatTime24h(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(inst))
+                    };
+                }
+            }
+            if (s.includes('T')) {
+                const [dPart, tPart = ''] = s.split('T');
+                const date = /^\d{4}-\d{2}-\d{2}/.test(dPart) ? dPart.slice(0, 10) : '';
+                const time = formatTime24h(tPart.replace(/\.\d+.*$/, '').replace(/[zZ].*$/, ''));
+                return { date, time };
+            }
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                return { date: s.slice(0, 10), time: '09:00' };
+            }
+            return { date: '', time: '09:00' };
+        }
+        if (value instanceof Date && !isNaN(value.getTime())) {
+            return {
+                date: new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(value),
+                time: formatTime24h(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(value))
+            };
+        }
+        return { date: '', time: '09:00' };
+    };
+
+    const getDatePart = (value) => parseDateTimeParts(value).date;
+
+    const getTimePart = (value) => {
+        if (value === null || value === undefined) return '09:00';
+        const s = typeof value === 'string' ? value.trim() : '';
+        if (s && !s.includes('T') && !s.includes('/') && /^\d{1,2}:\d{2}/.test(s)) {
+            return formatTime24h(s);
+        }
+        return parseDateTimeParts(value).time;
+    };
+
+    const formatDate = (dateStr) => {
+        const d = getDatePart(dateStr);
+        if (!d) return '-';
+        const [y, m, day] = d.split('-');
+        if (!y || !m || !day) return '-';
+        return day + '/' + m + '/' + y;
+    };
+
+    const toSortMillis = (dateValue, timeValue) => {
+        const d = getDatePart(dateValue);
+        if (!d) return 0;
+        const t = (timeValue !== undefined && timeValue !== null && String(timeValue).trim() !== '')
+            ? getTimePart(timeValue)
+            : getTimePart(dateValue);
+        const ms = Date.parse(d + 'T' + t + ':00' + BA_OFFSET);
+        return Number.isFinite(ms) ? ms : 0;
+    };
+
+    const extractDateTime = (dateValue, timeValue) => {
+        const fromDate = parseDateTimeParts(dateValue);
+        const hasExplicitTime = timeValue !== undefined && timeValue !== null && String(timeValue).trim() !== '';
+        const timeStr = hasExplicitTime ? getTimePart(timeValue) : fromDate.time;
+        const dateStr = fromDate.date;
+        return { date: dateStr, time: timeStr, iso: dateStr ? (dateStr + 'T' + timeStr + ':00') : '' };
+    };
+
+    const normalizeVisitRow = (visit) => {
+        if (!visit || !visit.date) return visit;
+        const dt = extractDateTime(visit.date, visit.time);
+        return { ...visit, date: dt.iso || visit.date, time: dt.time || visit.time || '09:00' };
+    };
+
+    const getBuenosAiresDate = (dateStr, timeStr) => {
+        const d = getDatePart(dateStr);
+        const t = getTimePart(timeStr);
+        return d ? (d + 'T' + t + ':00' + BA_OFFSET) : '';
+    };
+
+    const todayYmdBa = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+
+    /** Mes YYYY-MM de una fecha (siempre criterio Buenos Aires). */
+    const getMonthKey = (dateLike) => String(getDatePart(dateLike) || '').slice(0, 7);
+
+    /** Fecha para guardar movimientos / ingresos de visita (con offset BA, evita saltos de mes). */
+    const toFinanceStorageDate = (ymd, timeStr = '12:00') => {
+        const d = getDatePart(ymd);
+        if (!d) return '';
+        return d + 'T' + getTimePart(timeStr) + ':00' + BA_OFFSET;
+    };
+
+    const addDaysYmd = (ymd, days) => {
+        if (!ymd) return '';
+        const ms = Date.parse(ymd + 'T12:00:00' + BA_OFFSET);
+        if (!Number.isFinite(ms)) return '';
+        return getDatePart(new Date(ms + days * 86400000));
+    };
+
+    const getDowBa = (ymd) => {
+        const label = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, weekday: 'long' })
+            .format(new Date(Date.parse(`${ymd}T12:00:00${BA_OFFSET}`)))
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+        const map = { lunes: 0, martes: 1, miercoles: 2, jueves: 3, viernes: 4, sabado: 5, domingo: 6 };
+        return map[label] ?? 0;
+    };
+
+    const getWeekOfMonth = (dateLike) => {
+        const dateStr = getDatePart(dateLike);
+        if (!dateStr) return 1;
+        const y = Number(dateStr.slice(0, 4));
+        const m = Number(dateStr.slice(5, 7));
+        const d = Number(dateStr.slice(8, 10));
+        if (!y || !m || !d) return 1;
+        const first = new Date(y, m - 1, 1);
+        const firstDay = first.getDay();
+        const mondayOffset = firstDay === 0 ? 6 : firstDay - 1; // 0=lunes
+        const week = Math.floor((mondayOffset + (d - 1)) / 7) + 1;
+        return Math.max(1, Math.min(6, week));
+    };
+
+    const getWeeksInMonth = (dateLike) => {
+        const dateStr = getDatePart(dateLike);
+        if (!dateStr) return 4;
+        const y = Number(dateStr.slice(0, 4));
+        const m = Number(dateStr.slice(5, 7));
+        if (!y || !m) return 4;
+        const lastDay = new Date(y, m, 0); // último día del mes
+        const weekCount = getWeekOfMonth(lastDay);
+        return Math.max(4, Math.min(5, weekCount));
+    };
+
+    const getPendingItemKey = (item, targetMonth = 'current') => {
+        const cid = item?.client?.id || item?.visit?.clientId || '';
+        const requestId = item?.visit?.requestId || '';
+        const visitId = item?.visit?.id || '';
+        const app = Number(item?.applicationNumber || item?.visit?.applicationNumber || 0) || 0;
+        const total = Number(item?.totalApplications || item?.visit?.totalApplications || 0) || 0;
+        return [
+            targetMonth,
+            item?.type || '',
+            cid,
+            app,
+            total,
+            requestId,
+            visitId
+        ].join('|');
+    };
+
+    const visitHasFinanceValue = (v) => !v?.priceDisabled && Number(v?.price || 0) > 0;
+
+    const buildVisitIncomeTransaction = (visit) => ({
+        id: `t${Date.now()}_${visit.id}`,
+        type: 'INGRESO',
+        amount: Number(visit.price || 0),
+        category: 'Visita',
+        date: getDatePart(visit.date)
+            ? toFinanceStorageDate(getDatePart(visit.date), getTimePart(visit.time || visit.date))
+            : toFinanceStorageDate(todayYmdBa()),
+        clientId: visit.clientId,
+        visitId: visit.id,
+        notes: `Pago de visita - ${visit.type || 'ESPECIAL'}`
+    });
+
+    /** Alinea ingreso en Finanzas con precio/estado de pago de la visita. Devuelve transacciones actualizadas y filas a persistir. */
+    const syncVisitFinanceTransactions = (visit, transactions = []) => {
+        const txs = Array.isArray(transactions) ? [...transactions] : [];
+        const txsToSave = [];
+        const visitId = visit?.id;
+        if (!visitId) return { transactions: txs, txsToSave };
+
+        const idx = txs.findIndex(t => t.visitId === visitId && !t.deletedAt);
+        const existing = idx >= 0 ? txs[idx] : null;
+        const isPaid = String(visit.paymentStatus || '').toUpperCase() === 'PAGADO';
+        const shouldHaveIncome = isPaid && visitHasFinanceValue(visit);
+
+        if (!shouldHaveIncome) {
+            if (existing) {
+                const updated = { ...existing, deletedAt: new Date().toISOString() };
+                txs[idx] = updated;
+                txsToSave.push(updated);
+            }
+            return { transactions: txs, txsToSave };
+        }
+
+        const amount = Number(visit.price || 0);
+        const date = getDatePart(visit.date)
+            ? toFinanceStorageDate(getDatePart(visit.date), getTimePart(visit.time || visit.date))
+            : toFinanceStorageDate(todayYmdBa());
+        if (existing) {
+            const sameAmount = Number(existing.amount) === amount;
+            const sameDate = (getDatePart(existing.date) || existing.date) === (getDatePart(date) || date);
+            const sameClient = (existing.clientId || '') === (visit.clientId || '');
+            if (!sameAmount || !sameDate || !sameClient) {
+                const updated = {
+                    ...existing,
+                    amount,
+                    date,
+                    clientId: visit.clientId,
+                    deletedAt: null,
+                    notes: existing.notes || `Pago de visita - ${visit.type || 'ESPECIAL'}`
+                };
+                txs[idx] = updated;
+                txsToSave.push(updated);
+            }
+        } else {
+            const created = buildVisitIncomeTransaction(visit);
+            txs.push(created);
+            txsToSave.push(created);
+        }
+        return { transactions: txs, txsToSave };
+    };
+
+    const persistFinanceSync = (txsToSave = [], onError) => {
+        txsToSave.forEach(t => {
+            api.save('Transactions', t, () => {}, (e) => {
+                console.error('Error sincronizando transacción:', e);
+                if (onError) onError(e);
+                else toastMsg.error('No se pudo sincronizar Finanzas: ' + (e?.message || e));
+            });
+        });
+    };
+
+    const getLastPricedVisitForClient = (visits, clientId, excludeVisitId) => {
+        if (!clientId) return null;
+        const list = (Array.isArray(visits) ? visits : [])
+            .filter(v => !v?.deletedAt && v.clientId === clientId && v.id !== excludeVisitId && visitHasFinanceValue(v))
+            .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        return list[0] || null;
+    };
+
+    /** Colores de visita en agenda (misma paleta que StatusBadge; chips y tarjetas). */
+    const VISIT_STATUS_AGENDA = {
+        POR_CONFIRMAR: {
+            card: 'bg-amber-50 border-amber-300',
+            chip: 'bg-amber-50 border-amber-500 text-amber-950',
+            dot: 'bg-amber-500',
+        },
+        CONFIRMADA: {
+            card: 'bg-blue-50 border-blue-300',
+            chip: 'bg-blue-50 border-blue-600 text-blue-950',
+            dot: 'bg-blue-600',
+        },
+        REALIZADA: {
+            card: 'bg-green-50 border-green-300 opacity-90',
+            chip: 'bg-green-50 border-green-600 text-green-900 line-through',
+            dot: 'bg-green-600',
+        },
+        CANCELADA: {
+            card: 'bg-red-50 border-red-200',
+            chip: 'bg-red-50 border-red-400 text-red-700',
+            dot: 'bg-red-500',
+        },
+    };
+
+    const getAgendaVisitCardClass = (status) =>
+        (VISIT_STATUS_AGENDA[status] || {}).card || 'bg-white border-blue-200 hover:shadow-md';
+
+    const getAgendaVisitChipClass = (status) =>
+        (VISIT_STATUS_AGENDA[status] || {}).chip || 'bg-blue-50 border-blue-500 text-blue-950';
+
+    const getAgendaDotClass = (status) =>
+        (VISIT_STATUS_AGENDA[status] || {}).dot || 'bg-blue-600';
+
+    const getVisitDoneButtonClass = (isRealizada) =>
+        `btn-mark-realizada ${isRealizada ? 'is-done' : ''}`;
+
+    const readJsonLocal = (key, fallback) => {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return fallback;
+            return JSON.parse(raw);
+        } catch (e) {
+            return fallback;
+        }
+    };
+
+    const SESSION_TOKEN_KEY = 'lozanor_session_token_v1';
+    const readSessionToken = () => {
+        try { return localStorage.getItem(SESSION_TOKEN_KEY) || ''; } catch (e) { return ''; }
+    };
+    const writeSessionToken = (token) => {
+        try {
+            if (token) localStorage.setItem(SESSION_TOKEN_KEY, String(token));
+            else localStorage.removeItem(SESSION_TOKEN_KEY);
+        } catch (e) {}
+    };
+
+    const filterNotDeleted = (arr) => (Array.isArray(arr) ? arr : []).filter(x => !x?.deletedAt);
+
+    /** Estados de solicitud: PENDIENTE → AGENDADA → CERRADA (POR_CONFIRMAR en requests = legacy AGENDADA). */
+    const normalizeRequestStatus = (status) => {
+        const s = String(status || '').trim();
+        if (s === 'POR_CONFIRMAR') return 'AGENDADA';
+        return s;
+    };
+    const isRequestPending = (r) => String(r?.status || '').trim() === 'PENDIENTE';
+    const isRequestOpenForClient = (r) => {
+        const s = normalizeRequestStatus(r?.status);
+        return s === 'PENDIENTE' || s === 'AGENDADA';
+    };
+
+    const ADMIN2_SECTIONS = [
+      { id: 'AGENDA', label: 'Agenda (calendario, lista, visitas)' },
+      { id: 'SOLICITUDES', label: 'Solicitudes' },
+      { id: 'PENDIENTES', label: 'Pendientes del mes' },
+      { id: 'CLIENTES', label: 'Clientes' },
+      { id: 'FINANZAS', label: 'Finanzas, precios y pagos de visitas' },
+      { id: 'HISTORIAL', label: 'Historial' },
+      { id: 'NOTAS', label: 'Notas y alarmas' },
+      { id: 'RECOMENDADOR', label: 'Recomendador IA' }
+    ];
+
+    const parseAdmin2Permissions = (user) => {
+      if (!user) return {};
+      if (user.role === 'ADMIN') {
+        const all = {};
+        ADMIN2_SECTIONS.forEach(s => { all[s.id] = true; });
+        return all;
+      }
+      if (user.role !== 'ADMIN2') return {};
+      const out = {};
+      ADMIN2_SECTIONS.forEach(s => { out[s.id] = false; });
+      String(user.admin2Permissions || '').split(',').forEach(raw => {
+        const k = String(raw || '').trim().toUpperCase();
+        if (Object.prototype.hasOwnProperty.call(out, k)) out[k] = true;
+      });
+      return out;
+    };
+
+    const canAccessSection = (user, sectionId) => {
+      if (!user) return false;
+      if (user.role === 'ADMIN' || user.role === 'OPERATIVO') return true;
+      if (user.role === 'ADMIN2') return !!parseAdmin2Permissions(user)[sectionId];
+      return false;
+    };
+
+    const canWriteSection = (user, sectionId) => {
+      if (user?.role === 'ADMIN') return true;
+      if (user?.role === 'ADMIN2') return canAccessSection(user, sectionId);
+      return false;
+    };
+
+    const mergeRowsById = (prev = [], incoming = [], idKey = 'id') => {
+      const map = new Map();
+      (Array.isArray(prev) ? prev : []).forEach(r => { if (r && r[idKey] != null) map.set(String(r[idKey]), r); });
+      (Array.isArray(incoming) ? incoming : []).forEach(r => { if (r && r[idKey] != null) map.set(String(r[idKey]), r); });
+      return Array.from(map.values());
+    };
+
+    const writeJsonLocal = (key, value) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {}
+    };
+
+    const getSessionVersion = (user) => String(user?.sessionVersion || '0');
+
+    // Pendientes (misma lógica para TAB y para vista). targetMonth: 'current' | 'next' (para ver/agendar mes siguiente)
+    const buildPendientesItems = (visits = [], clients = [], targetMonth = 'current') => {
+        const now = new Date();
+        let monthStr = (getDatePart(now) || '').slice(0, 7);
+        if (targetMonth === 'next') {
+            const y = now.getFullYear(), m = now.getMonth();
+            const nextDate = new Date(y, m + 1, 1);
+            monthStr = (getDatePart(nextDate) || '').slice(0, 7);
+        }
+        const currentMonth = monthStr;
+        const items = [];
+
+        const safeVisits = (Array.isArray(visits) ? visits : []).filter(v => !v?.deletedAt);
+        const safeClients = Array.isArray(clients) ? clients : [];
+
+        // 1) ABONOS del mes (y aplicaciones faltantes del mes)
+        const abonosClientes = safeClients.filter(c => c.relationshipType === 'ABONO' && (c.status || 'ACTIVO') !== 'INACTIVO');
+        abonosClientes.forEach(client => {
+            const visitasMes = safeVisits.filter(v => {
+                if (v.clientId !== client.id || v.type !== 'ABONO' || v.status === 'CANCELADA') return false;
+                const m = (getDatePart(v.date) || '').slice(0, 7);
+                return m === currentMonth;
+            });
+
+            if (visitasMes.some(v => v.status === 'OMITIDA_MES' && Number(v.totalApplications || 1) <= 1)) {
+                return;
+            }
+
+            const visitasActivasMes = visitasMes.filter(v => v.status !== 'OMITIDA_MES');
+
+            if (visitasActivasMes.length === 0) {
+                items.push({ type: 'ABONO_MES', client, visit: null, applicationNumber: 1, totalApplications: 1, targetMonth });
+                return;
+            }
+
+            // agrupar por “tratamiento” (si existe requestId, lo usamos para separar; si no, cae en el mismo grupo)
+            const grupos = {};
+            visitasMes.forEach(v => {
+                const tot = Number(v.totalApplications || 1);
+                if (tot <= 1) return;
+                const key = `${client.id}|${tot}|${v.requestId || ''}`;
+                if (!grupos[key]) grupos[key] = { totalApplications: tot, apps: new Set(), ref: v };
+                const an = Number(v.applicationNumber || 0);
+                if (an) grupos[key].apps.add(an);
+            });
+
+            Object.values(grupos).forEach(g => {
+                for (let appNum = 1; appNum <= g.totalApplications; appNum++) {
+                    if (!g.apps.has(appNum)) {
+                        items.push({
+                            type: 'ABONO_APLICACION',
+                            client,
+                            visit: g.ref ? { ...g.ref, applicationNumber: appNum } : null,
+                            applicationNumber: appNum,
+                            totalApplications: g.totalApplications,
+                            targetMonth
+                        });
+                    }
+                }
+            });
+        });
+
+        // 2) ESPECIALES sin fecha (por confirmar) — solo para tratamientos de 1 aplicación.
+        //    Los multi-aplicación caen en el paso 3 para que se muestren como "Aplicación N de M".
+        safeVisits
+            .filter(v => !v.date && v.type === 'ESPECIAL' && v.status === 'POR_CONFIRMAR' && Number(v.totalApplications || 1) === 1)
+            .forEach(v => items.push({ type: 'ESPECIAL_SIN_FECHA', client: safeClients.find(c => c.id === v.clientId), visit: v, targetMonth }));
+
+        // 3) ESPECIALES con múltiples aplicaciones: faltantes (pueden ser en meses distintos)
+        const gruposEsp = {};
+        safeVisits.forEach(v => {
+            const tot = Number(v.totalApplications || 1);
+            if (v.type !== 'ESPECIAL' || tot <= 1 || v.status === 'CANCELADA' || v.followUpClosed) return;
+            const key = `${v.clientId}|${tot}|${v.requestId || ''}`;
+            if (!gruposEsp[key]) gruposEsp[key] = { clientId: v.clientId, totalApplications: tot, apps: new Set(), ref: v };
+            const an = Number(v.applicationNumber || 0);
+            // Solo contamos como "cubierta" la aplicación si ya tiene fecha agendada.
+            // Una visita POR_CONFIRMAR sin fecha (reingresada tras cancelar/eliminar) debe volver a figurar como faltante.
+            if (an && v.date) gruposEsp[key].apps.add(an);
+        });
+
+        Object.values(gruposEsp).forEach(g => {
+            const client = safeClients.find(c => c.id === g.clientId);
+            const related = safeVisits.filter(v => {
+                if (v.type !== 'ESPECIAL' || v.status === 'CANCELADA') return false;
+                const sameGroup = v.clientId === g.clientId
+                  && Number(v.totalApplications || 1) === g.totalApplications
+                  && (v.requestId || '') === (g.ref?.requestId || '');
+                return sameGroup;
+            });
+            const isAppCompleted = (appNum) => {
+                if (g.apps.has(appNum)) return true;
+                return related.some(v =>
+                    Number(v.applicationNumber || 0) === appNum && v.status === 'REALIZADA' && !!v.date
+                );
+            };
+            for (let appNum = 1; appNum <= g.totalApplications; appNum++) {
+                if (isAppCompleted(appNum)) continue;
+                // Solo la siguiente aplicación en secuencia (evita 2das/3ras visitas fantasma)
+                if (appNum > 1 && !isAppCompleted(appNum - 1)) break;
+                const prevDoneDate = related
+                    .filter(v => Number(v.applicationNumber || 0) === appNum - 1 && v.status === 'REALIZADA' && !!v.date)
+                    .map(v => getDatePart(v.date))
+                    .filter(Boolean)
+                    .sort()
+                    .shift() || '';
+                items.push({
+                    type: 'APLICACION_FALTANTE',
+                    client,
+                    visit: g.ref ? { ...g.ref, applicationNumber: appNum } : null,
+                    applicationNumber: appNum,
+                    totalApplications: g.totalApplications,
+                    lastApplicationDate: prevDoneDate,
+                    targetMonth
+                });
+            }
+        });
+
+        // Deduplicar
+        const seen = new Set();
+        const unique = [];
+        items.forEach(it => {
+            const cid = it.client?.id || it.visit?.clientId || '';
+            const key = `${it.type}|${cid}|${it.applicationNumber || ''}|${it.totalApplications || ''}|${it.visit?.requestId || ''}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            unique.push(it);
+        });
+
+        return unique;
+    };
+
+    const visitTreatmentKey = (v) => {
+        if (!v) return '';
+        return `${v.clientId}|${Number(v.totalApplications || 1)}|${v.requestId || ''}`;
+    };
+
+    const getRelatedTreatmentVisits = (visit, visits = []) => {
+        if (!visit || String(visit.type || '').toUpperCase() !== 'ESPECIAL') return [];
+        const key = visitTreatmentKey(visit);
+        return (Array.isArray(visits) ? visits : []).filter(v =>
+            !v?.deletedAt &&
+            String(v.type || '').toUpperCase() === 'ESPECIAL' &&
+            visitTreatmentKey(v) === key
+        );
+    };
+
+    const getDeleteVisitImpact = (visit, visits = []) => {
+        const baseMsg = 'La visita se eliminará permanentemente y no volverá a pendientes.';
+        const cancelHint = 'Si solo querés sacarla del mes o del calendario sin borrar el tratamiento, usá «Cancelar visita».';
+        if (!visit) return { relatedCount: 0, message: baseMsg };
+        const related = getRelatedTreatmentVisits(visit, visits).filter(v =>
+            v.id !== visit.id &&
+            v.status !== 'REALIZADA' &&
+            v.status !== 'CANCELADA'
+        );
+        if (Number(visit.totalApplications || 1) <= 1 && related.length === 0) {
+            return { relatedCount: 0, message: `${baseMsg} ${cancelHint}` };
+        }
+        if (related.length > 0) {
+            return {
+                relatedCount: related.length,
+                message: `Se eliminarán también ${related.length} visita(s) pendiente(s) del mismo tratamiento (${visit.totalApplications || 1} aplicaciones). ${cancelHint}`
+            };
+        }
+        return { relatedCount: 0, message: `${baseMsg} ${cancelHint}` };
+    };
+
+    // --- HOOKS & ICONS ---
+    const useEscape = (onEscape) => {
+        useEffect(() => {
+            const handleEsc = (event) => { if (event.keyCode === 27) onEscape(); };
+            window.addEventListener('keydown', handleEsc);
+            return () => window.removeEventListener('keydown', handleEsc);
+        }, [onEscape]);
+    };
+
+    const IconBase = ({ d, className, ...props }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+        {d}
+      </svg>
+    );
+
+    const Icons = {
+      Bug: (p) => <IconBase {...p} d={<><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></>} />,
+      LogOut: (p) => <IconBase {...p} d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></>} />,
+      RefreshCw: (p) => <IconBase {...p} d={<><path d="M21 12a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64"/><path d="M3 3v6h6"/><path d="M3 12a9 9 0 0 0 9 9 9 9 0 0 0 6.36-2.64"/><path d="M21 21v-6h-6"/></>} />,
+      AlertCircle: (p) => <IconBase {...p} d={<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>} />,
+      ShieldCheck: (p) => <IconBase {...p} d={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></>} />,
+      ChevronDown: (p) => <IconBase {...p} d={<><path d="m6 9 6 6 6-6"/></>} />,
+      Calendar: (p) => <IconBase {...p} d={<><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></>} />,
+      Plus: (p) => <IconBase {...p} d={<><path d="M5 12h14"/><path d="M12 5v14"/></>} />,
+      MessageSquare: (p) => <IconBase {...p} d={<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>} />,
+      Users: (p) => <IconBase {...p} d={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />,
+      DollarSign: (p) => <IconBase {...p} d={<><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>} />,
+      ChevronLeft: (p) => <IconBase {...p} d={<><path d="m15 18-6-6 6-6"/></>} />,
+      ChevronRight: (p) => <IconBase {...p} d={<><path d="m9 18 6-6-6-6"/></>} />,
+      ArrowUpDown: (p) => <IconBase {...p} d={<><path d="m7 8 5-5 5 5"/><path d="m7 16 5 5 5-5"/></>} />,
+      Search: (p) => <IconBase {...p} d={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>} />,
+      Power: (p) => <IconBase {...p} d={<><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" x2="12" y1="2" y2="12"/></>} />,
+      ExternalLink: (p) => <IconBase {...p} d={<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></>} />,
+      X: (p) => <IconBase {...p} d={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>} />,
+      MapPin: (p) => <IconBase {...p} d={<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>} />,
+      Edit2: (p) => <IconBase {...p} d={<><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></>} />,
+      Trash2: (p) => <IconBase {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />,
+      History: (p) => <IconBase {...p} d={<><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></>} />,
+      Home: (p) => <IconBase {...p} d={<><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>} />,
+      CloudOff: (p) => <IconBase {...p} d={<><line x1="1" y1="1" x2="23" y2="23"/><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 7h1.8a5 5 0 0 0 5.2 6.28"/><path d="M5.27 5.27A5 5 0 0 0 5 15h2"/></>} />,
+      AlertTriangle: (p) => <IconBase {...p} d={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></>} />,
+      CheckCircle: (p) => <IconBase {...p} d={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />,
+      XCircle: (p) => <IconBase {...p} d={<><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></>} />,
+      Sparkles: (p) => <IconBase {...p} d={<><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></>} />,
+      Download: (p) => <IconBase {...p} d={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></>} />,
+    };
+
+    // --- BACKEND SERVICE ---
+    const isGAS = typeof google !== 'undefined' && google.script;
+    
+    const api = {
+      getSetupStatus: (onSuccess, onError) => {
+        if (!isGAS) { if (onSuccess) onSuccess({ needsSetup: true }); return; }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || ((e) => console.error(e)))
+          .apiGetSetupStatus();
+      },
+      login: (email, pin, rememberDevice, onSuccess, onError) => {
+        if (!isGAS) { if (onError) onError({ message: 'Solo disponible en Apps Script' }); return; }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || ((e) => console.error(e)))
+          .apiLogin(email, pin, !!rememberDevice);
+      },
+      logout: (onSuccess, onError) => {
+        const token = readSessionToken();
+        writeSessionToken('');
+        if (!isGAS) { if (onSuccess) onSuccess({ success: true }); return; }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || (() => {}))
+          .apiLogout(token);
+      },
+      bootstrap: (admin, onSuccess, onError) => {
+        if (!isGAS) { if (onSuccess) onSuccess({ success: true }); return; }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || ((e) => console.error(e)))
+          .apiBootstrap(admin);
+      },
+      register: (info, onSuccess, onError) => {
+        if (!isGAS) { if (onError) onError({ message: 'Solo disponible en Apps Script' }); return; }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || ((e) => console.error(e)))
+          .apiPublicRegister(info);
+      },
+      getData: (onSuccess, onError, options) => {
+        const token = readSessionToken();
+        if (!token) {
+          if (onError) onError({ message: 'AUTH_REQUIRED: Sin sesión' });
+          return;
+        }
+        const scopes = (options && options.scopes) ? options.scopes : ['core', 'agenda'];
+        if (isGAS) {
+          const ok = typeof onSuccess === 'function' ? onSuccess : (() => {});
+          const fail = typeof onError === 'function' ? onError : ((e) => console.error('Error cargando datos:', e));
+          google.script.run
+            .withSuccessHandler(ok)
+            .withFailureHandler(fail)
+            .apiGetDataJson(token, { scopes: scopes });
+        } else {
+          setTimeout(() => onSuccess({ clients: [], users: [], visits: [], requests: [], transactions: [], notes: [] }), 1000);
+        }
+      },
+      save: (table, data, onSuccess, onError) => {
+        const token = readSessionToken();
+        if (!token) {
+          if (onError) onError({ message: 'AUTH_REQUIRED: Sin sesión' });
+          return;
+        }
+        if (isGAS) {
+          const ok = typeof onSuccess === 'function' ? onSuccess : (() => {});
+          const fail = typeof onError === 'function' ? onError : ((e) => {
+            console.error('Error guardando:', e);
+            toastMsg.error(formatAppError(e));
+          });
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res && res.success === false) {
+                const msg = formatAppError(res.message);
+                if (fail) fail({ message: msg });
+                return;
+              }
+              if (table === 'Visits' && res && res.calendar) {
+                if (res.calendar.error === 'calendar_not_found') {
+                  toastMsg.error('Visita guardada, pero no se pudo abrir el calendario Lozanor. Revisá GOOGLE_CALENDAR_ID en Code.gs.');
+                } else if (res.calendar.ok === false && !res.calendar.skipped) {
+                  toastMsg.info('Visita guardada. No se pudo crear/actualizar el evento en Google Calendar.');
+                }
+              }
+              ok(res);
+            })
+            .withFailureHandler((e) => fail(e))
+            .apiSaveData({ sessionToken: token, table, data });
+        } else {
+          console.log(`Saved ${table}:`, data);
+          if (onSuccess) onSuccess({ success: true });
+        }
+      },
+      withSessionPayload: (base) => {
+        const token = readSessionToken();
+        return Object.assign({}, base || {}, { sessionToken: token });
+      },
+      archiveVisitsYearly: (pin, onSuccess, onError) => {
+        const token = readSessionToken();
+        if (!token) {
+          if (onError) onError({ message: 'AUTH_REQUIRED: Sin sesión' });
+          return;
+        }
+        if (!isGAS) {
+          if (onError) onError({ message: 'Solo disponible en Apps Script' });
+          return;
+        }
+        google.script.run
+          .withSuccessHandler(onSuccess || (() => {}))
+          .withFailureHandler(onError || ((e) => console.error(e)))
+          .apiArchiveVisitsYearly(token, String(pin || '').trim());
+      }
+    };
+
+    // --- COMPONENTES UI GENÉRICOS ---
+    const Modal = ({ children, onClose, title, width = "max-w-md" }) => {
+        useEscape(onClose);
+        return (
+            <div data-modal="true" role="dialog" aria-modal="true" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in">
+                <div className={`bg-white rounded-xl shadow-2xl w-full ${width} flex flex-col max-h-[90vh] overflow-hidden`}>
+                    <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+                        <h3 className="font-bold text-base sm:text-lg text-gray-800 break-words pr-2">{title}</h3>
+                        <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full transition-colors"><Icons.X size={20} className="text-gray-500"/></button>
+                    </div>
+                    <div className="p-4 overflow-y-auto overflow-x-hidden flex-1 custom-scrollbar">
+                        {children}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const KPICard = ({ title, value, icon, subtitle, color = "bg-white" }) => (
+      <div className={`${color} p-3 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-h-[90px]`}>
+        <div className="flex justify-between items-start mb-2">
+          <span className="text-gray-500 text-xs font-bold uppercase">{title}</span>
+          <div className="p-2 bg-white/50 rounded-lg">{icon}</div>
+        </div>
+        <div>
+          <span className="text-xl font-bold text-gray-800 block">{value}</span>
+          {subtitle && <span className="text-xs text-gray-500 mt-1 block">{subtitle}</span>}
+        </div>
+      </div>
+    );
+
+    const TabButton = ({ active, onClick, label, icon }) => (
+      <button 
+        onClick={onClick}
+        className={`flex items-center gap-2 px-3 py-2 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+          active ? 'border-brand text-brand-dark bg-brand-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+        }`}
+      >
+        {icon} {label}
+      </button>
+    );
+
+    // --- TOAST SYSTEM ---
+    // Sistema global de notificaciones tipo toast. Reemplaza los alert() de éxito/error más visibles.
+    // Uso: toast.success("mensaje"), toast.error("mensaje"), toast.info("mensaje").
+    // Exponemos un objeto singleton en window.__toast para poder usarlo desde fuera de componentes.
+    const ToastContext = React.createContext(null);
+
+    const ToastProvider = ({ children }) => {
+      const [toasts, setToasts] = useState([]);
+
+      const dismiss = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+
+      const push = React.useCallback((payload) => {
+        const id = `t${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const t = { id, kind: 'info', duration: 4000, ...payload };
+        setToasts(prev => [...prev, t]);
+        if (t.duration > 0) {
+          setTimeout(() => dismiss(id), t.duration);
+        }
+        return id;
+      }, []);
+
+      const api = React.useMemo(() => ({
+        show: (message, opts) => push({ message, ...(opts || {}) }),
+        success: (message, opts) => push({ message, kind: 'success', duration: 3500, ...(opts || {}) }),
+        error: (message, opts) => push({ message, kind: 'error', duration: 6000, ...(opts || {}) }),
+        info: (message, opts) => push({ message, kind: 'info', duration: 4000, ...(opts || {}) }),
+        dismiss,
+      }), [push]);
+
+      // Puente global: permite llamar toast.success(...) fuera de componentes (helpers, callbacks).
+      useEffect(() => { window.__toast = api; return () => { if (window.__toast === api) window.__toast = null; }; }, [api]);
+
+      return (
+        <ToastContext.Provider value={api}>
+          {children}
+          <Toaster toasts={toasts} onDismiss={dismiss} />
+        </ToastContext.Provider>
+      );
+    };
+
+    const useToast = () => React.useContext(ToastContext) || (window.__toast || { success: (m)=>alert(m), error: (m)=>alert(m), info: (m)=>alert(m), show: (m)=>alert(m), dismiss: ()=>{} });
+
+    const Toaster = ({ toasts = [], onDismiss }) => {
+      if (!toasts.length) return null;
+      return (
+        <div className="fixed z-[100] top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 flex flex-col gap-2 max-w-md ml-auto pointer-events-none">
+          {toasts.map(t => {
+            const styles = t.kind === 'success' ? 'bg-statusDone-bg text-statusDone-text border-statusDone-ring'
+              : t.kind === 'error' ? 'bg-statusCancelled-bg text-statusCancelled-text border-statusCancelled-ring'
+              : 'bg-white text-gray-800 border-gray-200';
+            const Icon = t.kind === 'success' ? Icons.CheckCircle
+              : t.kind === 'error' ? Icons.AlertTriangle
+              : Icons.AlertCircle;
+            return (
+              <div key={t.id} className={`pointer-events-auto animate-slide-in-right border rounded-xl shadow-lg px-4 py-3 flex items-start gap-3 ${styles}`} role="status">
+                <Icon size={20} className="shrink-0 mt-0.5"/>
+                <div className="flex-1 text-sm font-medium whitespace-pre-line">{t.message}</div>
+                <button onClick={() => onDismiss(t.id)} className="shrink-0 opacity-60 hover:opacity-100" aria-label="Cerrar"><Icons.X size={16}/></button>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // --- CONFIRM DIALOG SYSTEM ---
+    // Reemplazo de window.confirm() nativo por un modal propio con tono acorde al design system.
+    // Uso: const ok = await confirmAsync({ title, message, tone: 'danger'|'default', confirmLabel, cancelLabel });
+    const ConfirmContext = React.createContext(null);
+
+    const ConfirmProvider = ({ children }) => {
+      const [state, setState] = useState(null); // { title, message, tone, confirmLabel, cancelLabel, resolve }
+
+      const confirm = React.useCallback((opts = {}) => {
+        return new Promise((resolve) => {
+          setState({
+            title: opts.title || '¿Confirmar acción?',
+            message: opts.message || '',
+            tone: opts.tone === 'danger' ? 'danger' : 'default',
+            confirmLabel: opts.confirmLabel || 'Confirmar',
+            cancelLabel: opts.cancelLabel || 'Cancelar',
+            resolve,
+          });
+        });
+      }, []);
+
+      const close = (ok) => {
+        if (!state) return;
+        state.resolve(!!ok);
+        setState(null);
+      };
+
+      useEffect(() => { window.__confirmAsync = confirm; return () => { if (window.__confirmAsync === confirm) window.__confirmAsync = null; }; }, [confirm]);
+
+      return (
+        <ConfirmContext.Provider value={confirm}>
+          {children}
+          {state && (
+            <div className="fixed inset-0 z-[90] bg-black/40 flex items-center justify-center p-4 animate-fade-in" onClick={() => close(false)}>
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`shrink-0 p-2 rounded-full ${state.tone === 'danger' ? 'bg-statusCancelled-bg text-statusCancelled-text' : 'bg-brand-50 text-brand-dark'}`}>
+                    {state.tone === 'danger' ? <Icons.AlertTriangle size={20}/> : <Icons.AlertCircle size={20}/>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-gray-900">{state.title}</h3>
+                    {state.message && <p className="mt-1 text-sm text-gray-600 whitespace-pre-line">{state.message}</p>}
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => close(false)} className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-lg hover:bg-gray-200 transition">{state.cancelLabel}</button>
+                  <button
+                    onClick={() => close(true)}
+                    className={`flex-1 text-white font-bold py-2.5 rounded-lg shadow transition ${state.tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-dark'}`}
+                    autoFocus
+                  >
+                    {state.confirmLabel}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </ConfirmContext.Provider>
+      );
+    };
+
+    // Helper global (para poder usarlo fuera de componentes, con fallback a confirm nativo si aún no está montado).
+    const confirmAsync = (opts) => (typeof window.__confirmAsync === 'function')
+      ? window.__confirmAsync(opts)
+      : Promise.resolve(window.confirm(typeof opts === 'string' ? opts : (opts?.message || opts?.title || '¿Confirmar?')));
+
+    // Shim global para disparar toasts desde cualquier lugar (handlers, callbacks fuera de componentes, etc.).
+    // Si el ToastProvider todavía no se montó (muy raro porque envuelve a <App/>), cae a alert() como fallback.
+    const toastMsg = {
+      success: (m, o) => window.__toast ? window.__toast.success(m, o) : alert(m),
+      error:   (m, o) => {
+        const msg = formatAppError(m, typeof m === 'string' ? m : undefined);
+        return window.__toast ? window.__toast.error(msg, o) : alert(msg);
+      },
+      info:    (m, o) => window.__toast ? window.__toast.info(m, o)    : alert(m),
+    };
+
+    // --- STATUS BADGES ---
+    // Componentes unificados para que el mismo estado tenga siempre el mismo color en toda la app.
+    const VISIT_STATUS_STYLES = {
+      POR_CONFIRMAR: { bg: 'bg-statusPending-bg', text: 'text-statusPending-text', ring: 'ring-statusPending-ring', label: 'Por confirmar' },
+      CONFIRMADA:    { bg: 'bg-statusConfirmed-bg', text: 'text-statusConfirmed-text', ring: 'ring-statusConfirmed-ring', label: 'Confirmada' },
+      REALIZADA:     { bg: 'bg-statusDone-bg', text: 'text-statusDone-text', ring: 'ring-statusDone-ring', label: 'Realizada' },
+      CANCELADA:     { bg: 'bg-statusCancelled-bg', text: 'text-statusCancelled-text', ring: 'ring-statusCancelled-ring', label: 'Cancelada' },
+    };
+    const PAYMENT_STATUS_STYLES = {
+      PAGADO:    { bg: 'bg-payPaid-bg', text: 'text-payPaid-text', ring: 'ring-payPaid-ring', label: 'Pagado' },
+      PENDIENTE: { bg: 'bg-payPending-bg', text: 'text-payPending-text', ring: 'ring-payPending-ring', label: 'Pendiente' },
+    };
+
+    const StatusBadge = ({ status, size = 'sm' }) => {
+      const cfg = VISIT_STATUS_STYLES[status] || VISIT_STATUS_STYLES.POR_CONFIRMAR;
+      const pad = size === 'xs' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
+      return <span className={`inline-flex items-center ${pad} rounded-full font-bold ring-1 ring-inset ${cfg.bg} ${cfg.text} ${cfg.ring}`}>{cfg.label}</span>;
+    };
+
+    const PaymentBadge = ({ status, size = 'sm' }) => {
+      const cfg = PAYMENT_STATUS_STYLES[status] || PAYMENT_STATUS_STYLES.PENDIENTE;
+      const pad = size === 'xs' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
+      return <span className={`inline-flex items-center ${pad} rounded-full font-bold ring-1 ring-inset ${cfg.bg} ${cfg.text} ${cfg.ring}`}>{cfg.label}</span>;
+    };
+
+    // --- LOGIN SCREEN ---
+
+    const LoginScreen = ({ onLogin, loading = false, error = null, onBootstrap, onRegister, onRetry, needsSetup = false }) => {
+      const [view, setView] = useState('LOGIN');
+      const [email, setEmail] = useState(() => {
+        try {
+          return localStorage.getItem('lozanor_remembered_email') || '';
+        } catch (e) {
+          return '';
+        }
+      });
+      const [pin, setPin] = useState('');
+      const [rememberDevice, setRememberDevice] = useState(() => {
+        try {
+          return localStorage.getItem('lozanor_remember_device') === 'true'
+            || localStorage.getItem('lozanor_remember_email') === 'true';
+        } catch (e) {
+          return false;
+        }
+      });
+      const [registering, setRegistering] = useState(false);
+      
+      const [regData, setRegData] = useState({ name: '', email: '', phone: '', address: '', type: '', notes: '' });
+      const [regPin, setRegPin] = useState('');
+      
+      const handleRegisterSubmit = async () => {
+          if (registering) return;
+          if(!regData.name || !regData.email || !regData.phone) return alert("Completa los campos obligatorios");
+          if(!regPin || String(regPin).trim().length < 4) return alert("Ingresá un PIN (mínimo 4 dígitos)");
+          setRegistering(true);
+          try {
+              const result = await onRegister({ ...regData, pin: String(regPin).trim() });
+              const newEmail = result?.email || regData.email;
+              alert(`¡Gracias! ✅\n\nTu usuario fue creado.\n\nEmail: ${newEmail}\n\nAhora iniciá sesión con el PIN que elegiste.`);
+              // Llevar a login + limpiar formulario
+              setView('LOGIN');
+              setRegData({ name: '', email: '', phone: '', address: '', type: '', notes: '' });
+              setRegPin('');
+              setEmail(newEmail);
+              setPin('');
+          } catch (e) {
+              // El flujo de guardado ya puede mostrar alert; acá dejamos un fallback
+              console.error('Error registrando:', e);
+              if (e?.message) alert(e.message);
+          } finally {
+              setRegistering(false);
+          }
+      };
+
+      if (view === 'REGISTER') {
+          return (
+              <div className="min-h-screen flex items-center justify-center bg-blue-50 p-4">
+                  <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+                      <div className="flex justify-between items-center mb-6">
+                          <h2 className="text-xl font-bold text-gray-800">Alta de Nuevo Cliente</h2>
+                          <button onClick={() => setView('LOGIN')} className="text-sm text-gray-500 hover:underline">Volver</button>
+                      </div>
+                      <div className="space-y-4">
+                          <input className="w-full border p-2.5 rounded-lg bg-gray-50" placeholder="Nombre completo" value={regData.name} onChange={e => setRegData({...regData, name: e.target.value})} />
+                          <input className="w-full border p-2.5 rounded-lg bg-gray-50" type="email" placeholder="Email (será tu usuario)" value={regData.email} onChange={e => setRegData({...regData, email: e.target.value})} />
+                          <input className="w-full border p-2.5 rounded-lg bg-gray-50" placeholder="Teléfono / WhatsApp" value={regData.phone} onChange={e => setRegData({...regData, phone: e.target.value})} />
+                          <input className="w-full border p-2.5 rounded-lg bg-gray-50" placeholder="Dirección exacta" value={regData.address} onChange={e => setRegData({...regData, address: e.target.value})} />
+                          <input className="w-full border p-2.5 rounded-lg bg-gray-50" type="password" placeholder="Elegí un PIN (mínimo 4 dígitos)" value={regPin} onChange={e => setRegPin(e.target.value)} />
+                          <button
+                              onClick={handleRegisterSubmit}
+                              disabled={registering}
+                              className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-bold shadow hover:bg-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                              {registering ? 'Creando usuario...' : 'Registrarme'}
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          )
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 font-sans relative">
+          <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md border-t-4 border-blue-500 relative z-10">
+            <div className="flex justify-center mb-6">
+              <div className="bg-blue-100 p-4 rounded-full shadow-inner">
+                <img src={APP_LOGO_DATA_URI} alt="Logo" className="w-10 h-10 object-contain" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-center text-gray-800 mb-2">LOZANOR</h2>
+            <p className="text-center text-gray-400 text-sm mb-6">Gestión de Fumigación y Plagas</p>
+            
+            {loading ? (
+               <div className="flex flex-col items-center justify-center py-10">
+                 <div className="loader mb-4"></div>
+                 <p className="text-gray-500 text-sm animate-pulse">Cargando sistema...</p>
+               </div>
+            ) : error ? (
+                <div className="text-center py-6">
+                    <div className="text-red-500 mb-2 flex justify-center"><Icons.CloudOff size={48}/></div>
+                    <p className="text-gray-800 font-bold mb-2">Error de Conexión</p>
+                    <p className="text-sm text-gray-500 mb-4 bg-red-50 p-2 rounded">{error.toString()}</p>
+                    <button onClick={onRetry} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">Reintentar</button>
+                </div>
+            ) : needsSetup ? (
+               <div className="text-center">
+                 <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-4 text-sm border border-yellow-200">
+                   <p className="font-bold flex items-center justify-center gap-2"><Icons.AlertCircle size={16}/> Base de Datos Vacía</p>
+                   <p className="mt-1">Inicializá la base de datos para comenzar.</p>
+                 </div>
+                <button onClick={onBootstrap} className="w-full bg-brand hover:bg-brand-dark text-white py-2.5 rounded-lg font-bold shadow-lg transition-colors">
+                  Crear Admin Inicial
+                </button>
+               </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
+                  <input 
+                    type="email" 
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50" 
+                    value={email} 
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (rememberDevice) {
+                        try {
+                          localStorage.setItem('lozanor_remembered_email', e.target.value);
+                        } catch (err) {}
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && email && pin) {
+                        if (rememberDevice && email) {
+                          try {
+                            localStorage.setItem('lozanor_remembered_email', email);
+                          } catch (err) {}
+                        }
+                        onLogin(email, pin, rememberDevice);
+                      }
+                    }}
+                    placeholder="usuario@email.com" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">PIN de Acceso</label>
+                  <input 
+                    type="password" 
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50" 
+                    value={pin} 
+                    onChange={(e) => setPin(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && email && pin) {
+                        if (rememberDevice && email) {
+                          try {
+                            localStorage.setItem('lozanor_remembered_email', email);
+                          } catch (err) {}
+                        }
+                        onLogin(email, pin, rememberDevice);
+                      }
+                    }}
+                    placeholder="****" 
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="remember-device"
+                    checked={rememberDevice}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setRememberDevice(checked);
+                      try {
+                        localStorage.setItem('lozanor_remember_device', checked ? 'true' : 'false');
+                        if (checked && email) {
+                          localStorage.setItem('lozanor_remembered_email', email);
+                        } else if (!checked) {
+                          localStorage.removeItem('lozanor_remembered_email');
+                        }
+                      } catch (err) {}
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="remember-device" className="text-sm text-gray-600 cursor-pointer">
+                    Mantener sesión en este dispositivo
+                  </label>
+                </div>
+                <button onClick={() => {
+                  if (rememberDevice && email) {
+                    try {
+                      localStorage.setItem('lozanor_remembered_email', email);
+                    } catch (err) {}
+                  }
+                  onLogin(email, pin, rememberDevice);
+                }} className="w-full bg-gray-900 text-white py-2.5 rounded-lg font-bold hover:bg-black transition-colors shadow-lg">
+                  Ingresar
+                </button>
+                <div className="pt-4 mt-4 border-t text-center">
+                    <button onClick={() => setView('REGISTER')} className="text-blue-700 font-bold text-sm hover:underline">
+                        ¿Nuevo Cliente? Regístrate aquí
+                    </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Footer simple */}
+          <div className="absolute bottom-2 left-4 text-[10px] text-gray-400">
+             {needsSetup ? '⚠️ Sin inicializar' : '🔒 Iniciá sesión con email y PIN'}
+          </div>
+        </div>
+      );
+    };
+
+    // --- MAIN APP COMPONENT ---
+
+    const App = () => {
+      const SESSION_STORAGE_KEY = 'lozanor_session_user_v1';
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [rawDataStatus, setRawDataStatus] = useState('WAIT'); // WAIT | OK | NULL
+      const [needsSetup, setNeedsSetup] = useState(false);
+      const [currentUser, setCurrentUser] = useState(() => readJsonLocal(SESSION_STORAGE_KEY, null));
+      const [view, setView] = useState(() => (readSessionToken() && readJsonLocal(SESSION_STORAGE_KEY, null)) ? 'DASHBOARD' : 'LOGIN');
+      const [diag] = useState({ uiVersion: UI_VERSION });
+      const AUTO_REFRESH_MS = 2 * 60 * 1000; // 2 min (solo si es seguro)
+      
+      // Asegurar que si no hay currentUser, la vista sea LOGIN
+      useEffect(() => {
+        if (!currentUser && view !== 'LOGIN') {
+          setView('LOGIN');
+        }
+      }, [currentUser, view]);
+
+      useEffect(() => {
+        if (currentUser) {
+          writeJsonLocal(SESSION_STORAGE_KEY, currentUser);
+        } else {
+          try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) {}
+        }
+      }, [currentUser]);
+      
+      const [data, setData] = useState({ users: [], clients: [], visits: [], requests: [], transactions: [], notes: [] });
+
+      const loadData = (silent = false, scopes = ['core', 'agenda']) => {
+        const scopeList = Array.isArray(scopes) ? scopes : ['core', 'agenda'];
+        // Guardar referencia al usuario actual antes de cargar
+        const savedUser = currentUser;
+        
+        // Si no es silencioso, mostrar loading
+        if (!silent) {
+        setLoading(true);
+        setError(null);
+        setRawDataStatus('WAIT');
+        }
+        
+        // Variable para rastrear si ya se resolvió
+        let resolved = false;
+        
+        // Timeout de seguridad para evitar carga infinita
+        const timeoutId = setTimeout(() => {
+          if (!resolved && !silent) {
+            resolved = true;
+            console.error("Timeout en carga de datos");
+            setError("La carga de datos está tardando demasiado. Por favor, intenta nuevamente.");
+            setLoading(false);
+            // No resetear datos si hay usuario logueado
+            if (!savedUser) {
+              setRawDataStatus('NULL');
+            }
+          }
+        }, 30000); // 30 segundos
+        
+        api.getData(
+            (res) => {
+              if (resolved) return;
+              resolved = true;
+              clearTimeout(timeoutId);
+              // apiGetDataJson(token, { scopes }) devuelve string
+              let parsed = null;
+              try {
+                parsed = typeof res === 'string' ? JSON.parse(res) : res;
+              } catch (e) {
+                console.error("Error parseando JSON de getData:", e, res);
+                if (!silent) setError("Error parseando datos del servidor.");
+                setLoading(false);
+                setRawDataStatus('NULL');
+                return;
+              }
+              console.log("Datos recibidos del servidor:", parsed);
+
+              // Si llega null/undefined, tratar como desconexión
+              if (parsed === null || parsed === undefined) {
+                  console.warn("El servidor devolvió null/undefined");
+
+                  // Si ya tengo data cargada, NO borrarla por un null intermitente
+                  const hasLocalData = Array.isArray(data?.users) && data.users.length > 0;
+                  if (savedUser || hasLocalData) {
+                      console.warn("Null intermitente: manteniendo datos actuales.");
+                      if (!silent) {
+                        setError("Conexión inestable: el servidor devolvió null. Manteniendo datos actuales.");
+                      }
+                      setLoading(false);
+                      // Importante: NO pisar rawDataStatus si ya estaba OK
+                      return;
+                  }
+
+                  // Intentar recuperar último snapshot bueno
+                  try {
+                    const cached = localStorage.getItem('lozanor_lastGoodData');
+                    if (cached) {
+                      const parsed = JSON.parse(cached);
+                      if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+                        console.warn("Usando cache local de último estado válido.");
+                        setData(parsed);
+                        setRawDataStatus('OK');
+                        setLoading(false);
+                        return;
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("No se pudo leer cache local:", e);
+                  }
+
+                  // Si no hay nada, mostrar inicialización
+                  setRawDataStatus('NULL');
+                  setData({ users: [], clients: [], visits: [], requests: [], transactions: [], notes: [] });
+                  setLoading(false);
+                  return;
+              }
+
+              // Sesión inválida / expirada
+              if (parsed && typeof parsed === 'object' && parsed.__auth) {
+                  console.warn("Auth error:", parsed.__error);
+                  writeSessionToken('');
+                  setCurrentUser(null);
+                  setView('LOGIN');
+                  setLoading(false);
+                  if (!silent) {
+                    toastMsg.error(formatAppError(parsed.__error, 'Sesión expirada. Volvé a iniciar sesión.'));
+                  }
+                  api.getSetupStatus((st) => setNeedsSetup(!!st.needsSetup), () => {});
+                  return;
+              }
+
+              // Si el backend devolvió un error explícito, mostrarlo y no destruir data existente
+              if (parsed && typeof parsed === 'object' && parsed.__error) {
+                  console.warn("Backend __error:", parsed.__error);
+                  if (!silent) {
+                    setError(String(parsed.__error));
+                  }
+                  // Mantener data actual si existe
+                  setLoading(false);
+                  return;
+              }
+
+              setRawDataStatus('OK');
+              const safeRes = parsed || {}; 
+              
+              // Normalizar fechas en visits
+              const normalizedVisits = (Array.isArray(safeRes.visits) ? safeRes.visits : []).map(normalizeVisitRow);
+              
+              setData(prev => {
+                const next = {
+                  users: prev.users || [],
+                  clients: prev.clients || [],
+                  visits: prev.visits || [],
+                  requests: prev.requests || [],
+                  transactions: prev.transactions || [],
+                  notes: prev.notes || []
+                };
+                if (safeRes.users !== undefined) next.users = Array.isArray(safeRes.users) ? safeRes.users : [];
+                if (safeRes.clients !== undefined) next.clients = Array.isArray(safeRes.clients) ? safeRes.clients : [];
+                if (safeRes.requests !== undefined) next.requests = Array.isArray(safeRes.requests) ? safeRes.requests : [];
+                if (safeRes.notes !== undefined) next.notes = Array.isArray(safeRes.notes) ? safeRes.notes : [];
+                if (safeRes.transactions !== undefined) {
+                  next.transactions = mergeRowsById(next.transactions, Array.isArray(safeRes.transactions) ? safeRes.transactions : []);
+                }
+                if (safeRes.visits !== undefined) {
+                  next.visits = mergeRowsById(next.visits, normalizedVisits);
+                }
+                if (scopeList.includes('core') && scopeList.includes('agenda')) {
+                  try { localStorage.setItem('lozanor_lastGoodData', JSON.stringify(next)); } catch (e) {}
+                }
+                return next;
+              });
+              
+              // Si hay usuario logueado pero ya no existe en la nueva data, mantener sesión
+              if (savedUser) {
+                const usersForCheck = Array.isArray(safeRes.users) ? safeRes.users : [];
+                const userStillExists = usersForCheck.find(
+                  u => u.id === savedUser.id || String(u.email || '').toLowerCase() === String(savedUser.email || '').toLowerCase()
+                );
+                if (!userStillExists) {
+                  console.warn("El usuario actual ya no existe en la base de datos. Manteniendo sesión.");
+                  // Mantener el usuario actual aunque no esté en la nueva data
+                } else {
+                  const serverSessionVersion = getSessionVersion(userStillExists);
+                  const localSessionVersion = getSessionVersion(savedUser);
+                  if (serverSessionVersion !== localSessionVersion) {
+                    console.warn('Sesión revocada en otro dispositivo. Cerrando sesión local.');
+                    if (!silent) {
+                      alert('Tu sesión fue cerrada desde otro dispositivo. Volvé a iniciar sesión.');
+                    }
+                    writeSessionToken('');
+                    setCurrentUser(null);
+                    setView('LOGIN');
+                    setLoading(false);
+                    return;
+                  }
+                  // Actualizar datos del usuario si cambió
+                  const updatedUser = {
+                    ...userStillExists,
+                    sessionVersion: serverSessionVersion,
+                    admin2Permissions: userStillExists.admin2Permissions || savedUser.admin2Permissions
+                  };
+                  if (
+                    updatedUser.id !== savedUser.id ||
+                    updatedUser.name !== savedUser.name ||
+                    updatedUser.role !== savedUser.role ||
+                    updatedUser.email !== savedUser.email ||
+                    updatedUser.admin2Permissions !== savedUser.admin2Permissions
+                  ) {
+                    setCurrentUser(updatedUser);
+                  }
+                }
+              }
+              
+              setLoading(false);
+            },
+            (err) => {
+              if (resolved) return;
+              resolved = true;
+              clearTimeout(timeoutId);
+                console.error("Error cargando datos:", err);
+              
+              // Si hay usuario logueado, mantener datos anteriores y no resetear
+              if (savedUser) {
+                  console.warn("Error cargando datos pero usuario logueado. Manteniendo datos anteriores.");
+                  setLoading(false);
+                  setRawDataStatus('NULL');
+                  // NO resetear data si hay usuario logueado
+                  return;
+              }
+              
+              // Solo resetear si no hay usuario logueado
+              const msg = err?.message || err?.toString() || 'Error desconocido al cargar datos';
+                setError(msg);
+                setLoading(false);
+              setRawDataStatus('NULL');
+              setData({ users: [], clients: [], visits: [], requests: [], transactions: [], notes: [] });
+            },
+            { scopes: scopeList }
+        );
+      };
+
+      // Auto-refresh “seguro”: solo si no hay modales abiertos y el usuario no está escribiendo
+      const loadDataRef = useRef(null);
+      useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
+
+      useEffect(() => {
+        const isEditableFocus = () => {
+          const el = document.activeElement;
+          if (!el) return false;
+          const tag = (el.tagName || '').toLowerCase();
+          if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+          if (el.isContentEditable) return true;
+          return false;
+        };
+
+        const tick = () => {
+          try {
+            if (view === 'LOGIN' || !currentUser) return;
+            if (loading) return;
+            if (document.querySelector('[data-modal="true"]')) return;
+            if (isEditableFocus()) return;
+            if (typeof loadDataRef.current === 'function') loadDataRef.current(true);
+          } catch (e) {
+            // no romper la app por auto-refresh
+          }
+        };
+
+        const id = setInterval(tick, AUTO_REFRESH_MS);
+        return () => clearInterval(id);
+      }, [AUTO_REFRESH_MS, view, currentUser, loading]);
+
+      useEffect(() => {
+        const token = readSessionToken();
+        const savedUser = readJsonLocal(SESSION_STORAGE_KEY, null);
+        if (token && savedUser) {
+          setCurrentUser(savedUser);
+          setView('DASHBOARD');
+          loadData(false);
+          return;
+        }
+        writeSessionToken('');
+        setCurrentUser(null);
+        setView('LOGIN');
+        setLoading(true);
+        api.getSetupStatus(
+          (st) => {
+            setNeedsSetup(!!st.needsSetup);
+            setLoading(false);
+          },
+          () => setLoading(false)
+        );
+      }, []);
+
+      const handleLogin = (email, pin, rememberDevice = false) => {
+        setLoading(true);
+        setError(null);
+        try {
+          localStorage.setItem('lozanor_remember_device', rememberDevice ? 'true' : 'false');
+        } catch (e) {}
+        api.login(
+          email,
+          pin,
+          rememberDevice,
+          (res) => {
+            setLoading(false);
+            if (!res || !res.success) {
+              alert(res?.message || 'Credenciales incorrectas. Verificá email y PIN.');
+              return;
+            }
+            writeSessionToken(res.sessionToken);
+            const user = res.user || {};
+            setCurrentUser({
+              ...user,
+              sessionVersion: getSessionVersion(user),
+              admin2Permissions: user.admin2Permissions || ''
+            });
+            setView('DASHBOARD');
+            setNeedsSetup(false);
+            loadData(false);
+          },
+          (err) => {
+            setLoading(false);
+            alert('Error al iniciar sesión: ' + (err?.message || err));
+          }
+        );
+      };
+
+      const handleLogout = () => {
+        api.logout(() => {}, () => {});
+        writeSessionToken('');
+        setCurrentUser(null);
+        setView('LOGIN');
+        api.getSetupStatus((st) => setNeedsSetup(!!st.needsSetup), () => {});
+      };
+
+      const handleLogoutAllDevices = async () => {
+        if (!currentUser) return;
+        const first = await confirmAsync({
+          title: '¿Cerrar sesión en todos los dispositivos?',
+          message: 'Esto va a desloguear esta cuenta en cualquier celular/PC donde esté abierta.',
+          tone: 'danger',
+          confirmLabel: 'Continuar',
+        });
+        if (!first) return;
+        const second = await confirmAsync({
+          title: 'Confirmación final',
+          message: '¿Seguro que querés cerrar sesión en todos los dispositivos ahora?',
+          tone: 'danger',
+          confirmLabel: 'Sí, cerrar sesión',
+        });
+        if (!second) return;
+
+        const users = Array.isArray(data?.users) ? data.users : [];
+        const idx = users.findIndex(u => u.id === currentUser.id || (u.email && u.email === currentUser.email));
+        if (idx < 0) {
+          alert('No se encontró el usuario para invalidar la sesión global.');
+          handleLogout();
+          return;
+        }
+
+        const revokedVersion = String(Date.now());
+        const userToSave = {
+          ...users[idx],
+          sessionVersion: revokedVersion,
+          sessionRevokedAt: new Date().toISOString()
+        };
+
+        setData(prev => {
+          const safeUsers = Array.isArray(prev.users) ? prev.users : [];
+          const nextUsers = safeUsers.map(u => (u.id === userToSave.id ? userToSave : u));
+          return { ...prev, users: nextUsers };
+        });
+
+        api.save('Users', userToSave, () => {
+          toastMsg.success('Sesión cerrada en todos los dispositivos.');
+        }, (e) => {
+          console.error('Error cerrando sesión global:', e);
+          alert('Se cerró esta sesión local, pero hubo un error al invalidar globalmente: ' + (e?.message || e));
+        });
+
+        handleLogout();
+      };
+
+      const handleBootstrap = () => {
+        const admin = { id: 'u_admin', email: 'admin@lozanor.com', pin: '1234', role: 'ADMIN', name: 'Admin Lozanor', sessionVersion: '0' };
+        setLoading(true);
+        api.bootstrap(admin, (res) => {
+            setLoading(false);
+            if (!res || !res.success) {
+              alert('Error guardando Admin: ' + (res?.message || 'Error desconocido'));
+              return;
+            }
+            setNeedsSetup(false);
+            setView('LOGIN');
+            alert("¡Sistema inicializado!\n\nAdmin creado:\nEmail: admin@lozanor.com\nPIN: 1234\n\nAhora podés iniciar sesión.");
+        }, (e) => {
+            setLoading(false);
+            alert("Error guardando Admin: " + (e?.message || e));
+        });
+      };
+
+      const handlePublicRegister = (info) => {
+          return new Promise((resolve, reject) => {
+            api.register(info, (res) => {
+              if (!res || !res.success) {
+                return reject(new Error(res?.message || 'No se pudo registrar.'));
+              }
+              resolve({ email: res.email, clientId: res.clientId });
+            }, (e) => reject(new Error(e?.message || e)));
+          });
+      };
+
+      const handleSaveClient = (clientData, userPin) => {
+         if (!canWriteSection(currentUser, 'CLIENTES')) {
+           toastMsg.info('No tenés permiso para crear/editar clientes.');
+           return Promise.reject(new Error('Sin permiso'));
+         }
+         return new Promise((resolve, reject) => {
+             // Seguridad: el PIN no debe persistirse en Clients (solo en Users)
+             const { pin: _ignoredPin, ...safeClientData } = (clientData || {});
+             setData(prev => {
+                 const currentClients = Array.isArray(prev.clients) ? prev.clients : [];
+                 const currentUsers = Array.isArray(prev.users) ? prev.users : [];
+                 
+                 let newClients = [...currentClients];
+        const exists = newClients.findIndex(c => c.id === safeClientData.id);
+                 const isNew = exists < 0;
+                 
+                 // Si existe, preservar campos que puedan no venir en clientData
+                 if(exists >= 0) {
+                     const existingClient = newClients[exists];
+                     newClients[exists] = { 
+                         ...existingClient, 
+                        ...safeClientData,
+                         // Asegurar que relationshipType se preserve si viene en clientData
+                        relationshipType: safeClientData.relationshipType || existingClient.relationshipType || 'ESPECIAL'
+                     };
+                 } else {
+                    newClients.push(safeClientData);
+                 }
+                 
+                 let newUsers = [...currentUsers];
+        const userIdx = newUsers.findIndex(u => u.clientId === safeClientData.id);
+        let userData = userIdx >= 0 ? { ...newUsers[userIdx] } : { id: `u_${safeClientData.id}`, role: 'CLIENT', clientId: safeClientData.id };
+        userData.email = safeClientData.email;
+        userData.name = safeClientData.name;
+         if(userPin) userData.pin = userPin;
+         if(userIdx >= 0) newUsers[userIdx] = userData;
+         else newUsers.push(userData);
+
+                 const clientToSave = newClients[exists >= 0 ? exists : newClients.length - 1];
+                 
+                 // Guardar en el backend - esperar ambas operaciones
+                 let clientSaved = false;
+                 let userSaved = false;
+                 let hasError = false;
+                 
+                 const checkComplete = () => {
+                     if (hasError) return;
+                     if (clientSaved && userSaved) {
+                         console.log('Cliente y usuario guardados exitosamente');
+                         resolve({ client: clientToSave, user: userData, isNew });
+                     }
+                 };
+                 
+                 api.save('Clients', clientToSave, () => {
+                     clientSaved = true;
+                     checkComplete();
+                 }, (e) => {
+                     console.error('Error guardando cliente:', e);
+                     hasError = true;
+                     const errorMsg = 'Error al guardar el cliente: ' + (e?.message || e);
+                     toastMsg.error(errorMsg);
+                     reject(new Error(errorMsg));
+                 });
+                 
+                 api.save('Users', userData, () => {
+                     userSaved = true;
+                     checkComplete();
+                 }, (e) => {
+                     console.error('Error guardando usuario:', e);
+                     hasError = true;
+                     const errorMsg = 'Error al guardar el usuario: ' + (e?.message || e);
+                     toastMsg.error(errorMsg);
+                     reject(new Error(errorMsg));
+                 });
+                 
+                 return { ...prev, clients: newClients, users: newUsers };
+             });
+         });
+      };
+
+      const handleSaveOperativo = (operativoData) => {
+        if (currentUser?.role !== 'ADMIN') {
+          return Promise.reject(new Error('Solo el administrador general puede gestionar fumigadores.'));
+        }
+        return new Promise((resolve, reject) => {
+          try {
+            if (!operativoData?.email) return reject(new Error('Email requerido'));
+            if (!operativoData?.name) return reject(new Error('Nombre requerido'));
+            const pinStr = String(operativoData.pin || '').trim();
+            const isNew = !operativoData.id || !data.users.some(u => u.id === operativoData.id);
+            if (isNew && pinStr.length < 4) return reject(new Error('PIN mínimo 4 dígitos'));
+            const payload = {
+              ...operativoData,
+              role: 'OPERATIVO',
+              email: String(operativoData.email).trim().toLowerCase(),
+              status: operativoData.status || 'ACTIVO'
+            };
+            if (pinStr) payload.pin = pinStr;
+            else delete payload.pin;
+
+            setData(prev => {
+              const users = Array.isArray(prev.users) ? prev.users : [];
+              const idx = users.findIndex(u => u.id === payload.id || String(u.email || '').toLowerCase() === payload.email);
+              const newUsers = [...users];
+              if (idx >= 0) newUsers[idx] = { ...newUsers[idx], ...payload };
+              else newUsers.push(payload);
+              return { ...prev, users: newUsers };
+            });
+
+            api.save('Users', payload, () => {
+              resolve(payload);
+            }, (e) => {
+              reject(new Error(e?.message || e?.toString?.() || 'Error guardando fumigador'));
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      };
+
+      const handleSaveAdmin2 = (adminData) => {
+        if (currentUser?.role !== 'ADMIN') {
+          return Promise.reject(new Error('Solo un ADMIN puede crear/editar admins de solo lectura.'));
+        }
+        return new Promise((resolve, reject) => {
+          try {
+            if (!adminData?.email) return reject(new Error('Email requerido'));
+            if (!adminData?.name) return reject(new Error('Nombre requerido'));
+            const pinStr = String(adminData.pin || '').trim();
+            const isNew = !adminData.id || !data.users.some(u => u.id === adminData.id);
+            if (isNew && pinStr.length < 4) return reject(new Error('PIN mínimo 4 dígitos'));
+            const perms = Array.isArray(adminData.admin2PermissionsList)
+              ? adminData.admin2PermissionsList
+              : String(adminData.admin2Permissions || '').split(',').map(s => s.trim()).filter(Boolean);
+            const payload = {
+              ...adminData,
+              role: 'ADMIN2',
+              email: String(adminData.email).trim().toLowerCase(),
+              status: adminData.status || 'ACTIVO',
+              admin2Permissions: perms.join(',')
+            };
+            if (pinStr) payload.pin = pinStr;
+            else delete payload.pin;
+            delete payload.admin2PermissionsList;
+
+            setData(prev => {
+              const users = Array.isArray(prev.users) ? prev.users : [];
+              const idx = users.findIndex(u => u.id === payload.id || String(u.email || '').toLowerCase() === payload.email);
+              const newUsers = [...users];
+              if (idx >= 0) newUsers[idx] = { ...newUsers[idx], ...payload };
+              else newUsers.push(payload);
+              return { ...prev, users: newUsers };
+            });
+
+            api.save('Users', payload, () => resolve(payload), (e) => {
+              reject(new Error(e?.message || e?.toString?.() || 'Error guardando admin solo lectura'));
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      };
+
+      const handleSaveAdmin1 = (adminData) => {
+        if (currentUser?.role !== 'ADMIN') {
+          return Promise.reject(new Error('Solo un ADMIN puede crear/editar admins.'));
+        }
+        return new Promise((resolve, reject) => {
+          try {
+            if (!adminData?.email) return reject(new Error('Email requerido'));
+            if (!adminData?.name) return reject(new Error('Nombre requerido'));
+            const pinStr = String(adminData.pin || '').trim();
+            const isNew = !adminData.id || !data.users.some(u => u.id === adminData.id);
+            if (isNew && pinStr.length < 4) return reject(new Error('PIN mínimo 4 dígitos'));
+            const payload = {
+              ...adminData,
+              role: 'ADMIN',
+              email: String(adminData.email).trim().toLowerCase(),
+              status: adminData.status || 'ACTIVO'
+            };
+            if (pinStr) payload.pin = pinStr;
+            else delete payload.pin;
+
+            setData(prev => {
+              const users = Array.isArray(prev.users) ? prev.users : [];
+              const id
+<truncated 397878 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need."}
