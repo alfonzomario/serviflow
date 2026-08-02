@@ -181,6 +181,19 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
+0. **Migrar un cliente real de la app vieja está bloqueado.** Probado contra las
+   columnas que tiene de verdad la hoja `Visits` del legacy:
+   - **La hoja referencia al cliente por `clientId`, no por nombre**, y el
+     importador solo resuelve por nombre. Todas las filas de visitas fallarían.
+     Hace falta guardar el id original al importar clientes (un `externalId`) y
+     que la resolución de visitas lo use primero.
+   - **La columna `time` se ignora**: el legacy guarda fecha y hora separadas, y
+     `scheduledAt` se llevaría solo la fecha. Todas las visitas caerían a
+     medianoche.
+   - **Las hojas `Users`, `Requests` y `Notes` no se pueden importar.**
+   - Las visitas archivadas viven en hojas aparte (`Visits_2024`, etc.): se
+     pueden importar de a una, pero es manual.
+
 1. **Lo que le falta al importador.**
    - **Notas** no se pueden importar. Es la última entidad de la lista del plan
      y la más simple: no cuelga de nadie.
