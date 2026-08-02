@@ -2,32 +2,49 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { signIn } from "next-auth/react"
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = React.useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get("callbackUrl") || "/"
 
-  async function onSubmit(event: React.SyntheticEvent) {
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsLoading(true)
-    
-    // Simulate sign in
-    setTimeout(() => {
+    setError(null)
+
+    const formData = new FormData(event.currentTarget)
+    const result = await signIn("credentials", {
+      email: String(formData.get("email") ?? ""),
+      password: String(formData.get("password") ?? ""),
+      redirect: false,
+    })
+
+    if (result?.error) {
+      setError("Email o contraseña incorrectos")
       setIsLoading(false)
-    }, 1000)
+      return
+    }
+
+    // The session cookie is set client-side; refresh so middleware sees it.
+    router.replace(callbackUrl)
+    router.refresh()
   }
 
   return (
     <>
       <div className="flex flex-col space-y-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome back
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Bienvenido de vuelta</h1>
         <p className="text-sm text-muted-foreground">
-          Enter your email to sign in to your account
+          Ingresá con tu email para acceder a tu cuenta
         </p>
       </div>
       <div className="grid gap-6">
@@ -37,46 +54,55 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                placeholder="name@example.com"
+                name="email"
+                placeholder="nombre@ejemplo.com"
                 type="email"
                 autoCapitalize="none"
                 autoComplete="email"
                 autoCorrect="off"
+                required
                 disabled={isLoading}
               />
             </div>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Contraseña</Label>
                 <Link
                   href="/forgot-password"
                   className="text-sm font-medium text-primary hover:underline underline-offset-4"
                 >
-                  Forgot password?
+                  ¿Olvidaste tu contraseña?
                 </Link>
               </div>
               <Input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
+                required
                 disabled={isLoading}
               />
             </div>
+
+            {error && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
             <Button disabled={isLoading} className="mt-2">
               {isLoading && (
-                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-r-transparent" />
+                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
               )}
-              Sign In
+              Ingresar
             </Button>
           </div>
         </form>
       </div>
       <p className="px-8 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
-        <Link
-          href="/register"
-          className="hover:text-primary underline underline-offset-4"
-        >
-          Register your business
+        ¿No tenés cuenta?{" "}
+        <Link href="/register" className="hover:text-primary underline underline-offset-4">
+          Registrá tu negocio
         </Link>
       </p>
     </>

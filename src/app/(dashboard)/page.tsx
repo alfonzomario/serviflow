@@ -1,98 +1,137 @@
 "use client"
 
+import Link from "next/link"
+import { DollarSign, Clock, CheckCircle2, Users, CalendarDays } from "lucide-react"
+
+import { trpc } from "@/lib/trpc"
+import { formatCurrency, formatLongDateTime } from "@/lib/format"
 import { KPICard } from "@/components/dashboard/KPICard"
-import { DollarSign, Clock, CheckCircle2, Users } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { StatusBadge, VisitStatus } from "@/components/shared/StatusBadge"
 
+/** Percentage change -> the shape KPICard expects. */
+const toTrend = (value: number | null | undefined) => {
+  if (value === null || value === undefined) return undefined
+  return {
+    value: `${Math.abs(value)}%`,
+    direction: value > 0 ? ("up" as const) : value < 0 ? ("down" as const) : ("neutral" as const),
+  }
+}
+
 export default function DashboardPage() {
+  const kpis = trpc.dashboard.kpis.useQuery()
+  const upcoming = trpc.dashboard.upcomingVisits.useQuery()
+  const monthly = trpc.transactions.monthlySummary.useQuery({ months: 7 })
+
+  const maxRevenue = Math.max(1, ...(monthly.data?.map((month) => month.income) ?? [0]))
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="animate-in fade-in space-y-8 duration-500">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Overview</h2>
-        <p className="text-muted-foreground mt-2">
-          Welcome back! Here's what's happening with your business today.
-        </p>
+        <h2 className="text-3xl font-bold tracking-tight">Panel</h2>
+        <p className="mt-2 text-muted-foreground">Un vistazo rápido a cómo viene el mes.</p>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Revenue this month"
-          value="$12,450"
+          title="Facturado este mes"
+          value={kpis.data ? formatCurrency(kpis.data.revenue.value) : "—"}
           icon={DollarSign}
-          trend={{ value: "12%", direction: "up" }}
+          trend={toTrend(kpis.data?.revenue.trend)}
           variant="primary"
         />
         <KPICard
-          title="Pending Visits"
-          value="24"
+          title="Visitas por hacer"
+          value={kpis.data ? String(kpis.data.pendingVisits) : "—"}
           icon={Clock}
-          trend={{ value: "4%", direction: "down" }}
           variant="warning"
         />
         <KPICard
-          title="Completed Visits"
-          value="156"
+          title="Completadas este mes"
+          value={kpis.data ? String(kpis.data.completedVisits.value) : "—"}
           icon={CheckCircle2}
-          trend={{ value: "8%", direction: "up" }}
+          trend={toTrend(kpis.data?.completedVisits.trend)}
           variant="success"
         />
         <KPICard
-          title="Active Clients"
-          value="892"
+          title="Clientes activos"
+          value={kpis.data ? String(kpis.data.activeClients) : "—"}
           icon={Users}
-          trend={{ value: "1.2%", direction: "up" }}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Chart placeholder */}
         <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
-            <CardDescription>Monthly revenue across all services</CardDescription>
+            <CardTitle>Ingresos por mes</CardTitle>
+            <CardDescription>Últimos 7 meses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-end gap-2 pt-4">
-              {/* CSS-only placeholder bars */}
-              {[40, 60, 45, 80, 50, 90, 75].map((height, i) => (
-                <div key={i} className="w-full bg-primary/20 rounded-t-md relative group hover:bg-primary/30 transition-colors" style={{ height: `${height}%` }}>
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-foreground text-background text-xs px-2 py-1 rounded">
-                    ${height * 100}
-                  </div>
+            {monthly.data && monthly.data.length > 0 ? (
+              <>
+                <div className="flex h-[300px] items-end gap-2 pt-4">
+                  {monthly.data.map((month) => (
+                    <div
+                      key={month.month}
+                      className="group relative w-full rounded-t-md bg-primary/20 transition-colors hover:bg-primary/30"
+                      style={{ height: `${Math.max(4, (month.income / maxRevenue) * 100)}%` }}
+                    >
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100">
+                        {formatCurrency(month.income)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-4 text-xs text-muted-foreground">
-              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span>
-            </div>
+                <div className="mt-4 flex justify-between text-xs text-muted-foreground">
+                  {monthly.data.map((month) => (
+                    <span key={month.month}>{month.month.slice(5)}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Todavía no hay movimientos registrados.
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Upcoming visits */}
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Upcoming Visits</CardTitle>
-            <CardDescription>Your schedule for the next 48 hours</CardDescription>
+            <CardTitle>Próximas visitas</CardTitle>
+            <CardDescription>Las próximas 48 horas</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {[
-                { id: 1, client: "Acme Corp", time: "Today, 10:00 AM", status: VisitStatus.CONFIRMED },
-                { id: 2, client: "Stark Industries", time: "Today, 02:00 PM", status: VisitStatus.PENDING_CONFIRM },
-                { id: 3, client: "Wayne Enterprises", time: "Tomorrow, 09:00 AM", status: VisitStatus.CONFIRMED },
-                { id: 4, client: "LexCorp", time: "Tomorrow, 11:30 AM", status: VisitStatus.CONFIRMED },
-              ].map((visit) => (
-                <div key={visit.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">{visit.client}</p>
-                    <p className="text-sm text-muted-foreground">{visit.time}</p>
+            {upcoming.data && upcoming.data.length > 0 ? (
+              <div className="space-y-6">
+                {upcoming.data.map((visit) => (
+                  <div
+                    key={visit.id}
+                    className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate text-sm font-medium leading-none">
+                        {visit.client.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {visit.scheduledAt ? formatLongDateTime(visit.scheduledAt) : "Sin agendar"}
+                      </p>
+                    </div>
+                    <StatusBadge status={visit.status as VisitStatus} size="sm" />
                   </div>
-                  <StatusBadge status={visit.status} size="sm" />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <CalendarDays className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  No hay visitas agendadas para las próximas 48 horas.
+                </p>
+                <Link href="/agenda" className="text-sm font-medium text-primary hover:underline">
+                  Ir a la agenda
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

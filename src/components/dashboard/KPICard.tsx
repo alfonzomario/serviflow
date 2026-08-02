@@ -56,7 +56,7 @@ export function KPICard({ title, value, icon: Icon, trend, variant = "default" }
               {trend.direction === "up" ? "↑" : trend.direction === "down" ? "↓" : "→"}
               {trend.value}
             </span>
-            <span className="text-muted-foreground">vs last month</span>
+            <span className="text-muted-foreground">vs. mes anterior</span>
           </div>
         )}
       </CardContent>

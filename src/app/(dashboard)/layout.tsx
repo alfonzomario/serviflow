@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Header } from "@/components/layout/Header"
+import { trpc } from "@/lib/trpc"
 
 export default function DashboardLayout({
   children,
@@ -10,6 +12,23 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+
+  // A business that has not been through the wizard yet gets sent there once.
+  const tenant = trpc.tenant.current.useQuery()
+  const needsOnboarding = tenant.data ? !tenant.data.settings?.onboardedAt : false
+
+  useEffect(() => {
+    if (needsOnboarding && pathname !== "/onboarding") router.replace("/onboarding")
+  }, [needsOnboarding, pathname, router])
+
+  // The wizard fills the screen: no sidebar, nothing to navigate away to yet.
+  if (pathname === "/onboarding") {
+    return (
+      <div className="min-h-screen overflow-y-auto bg-muted/20 p-4 lg:p-8">{children}</div>
+    )
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
