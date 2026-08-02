@@ -247,6 +247,9 @@ model Job {
   /// surfaced as pending. Replaces the old per-visit `followUpClosed`.
   closedAt          DateTime? @map("closed_at")
   notes             String?
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId          String?  @map("import_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
@@ -258,6 +261,7 @@ model Job {
 
   @@index([tenantId, clientId])
   @@index([tenantId, closedAt])
+  @@index([tenantId, importId])
   @@map("jobs")
 }
 

@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { tenantWhere, tenantOnly } from '../lib/tenant-context';
 import { recordAudit } from './audit.service';
+import { groupIntoJobs, type ResolvedRow } from './import';
 import type { PreparedRow } from './import';
 import type { Prisma, VisitStatus } from '@prisma/client';
 
@@ -198,14 +199,19 @@ export const executeVisitImport = async ({
 }: {
   tenantId: string;
   userId: string;
-  rows: (PreparedRow & { clientId: string })[];
+  rows: ResolvedRow[];
   strategy: DuplicateStrategy;
   fileName: string | null;
   columnMapping: Prisma.InputJsonValue;
   totalRows: number;
   errorRows: number;
-}): Promise<ImportOutcome> => {
+}): Promise<ImportOutcome & { jobsCreated: number }> => {
   const today = new Date();
+
+  // Las filas que declaran "N de M" se agrupan en trabajos reales, si no
+  // entrarían como visitas sueltas y Pendientes nunca pediría la aplicación que
+  // falta — se perdería un tratamiento en curso sin que se note.
+  const { jobs, loose } = groupIntoJobs(rows);
 
   // Las visitas que ya existen para esos clientes, para no duplicar historial
   // si el archivo se importa dos veces.
@@ -232,10 +238,12 @@ export const executeVisitImport = async ({
     let skipped = 0;
     const errors: { row: number; message: string }[] = [];
     const seen = new Set(existingKeys);
+    let jobsCreated = 0;
 
-    for (const row of rows) {
+    /** Escribe una visita. `jobId` la engancha a su tratamiento. */
+    const writeVisit = async (row: ResolvedRow, jobId: string | null) => {
       const scheduledAt = row.values.scheduledAt as Date | undefined;
-      if (!scheduledAt) continue;
+      if (!scheduledAt) return;
 
       const serviceType = (row.values.serviceType as string | undefined) ?? null;
       const key = `${row.clientId}|${scheduledAt
@@ -244,7 +252,7 @@ export const executeVisitImport = async ({
 
       if (seen.has(key) && strategy !== 'CREATE_NEW') {
         skipped++;
-        continue;
+        return;
       }
 
       // Sin estado mapeado, lo que ya pasó se da por hecho y lo que viene queda
@@ -259,6 +267,10 @@ export const executeVisitImport = async ({
             tenantId,
             clientId: row.clientId,
             importId,
+            jobId,
+            applicationNumber: jobId
+              ? ((row.values.applicationNumber as number | undefined) ?? null)
+              : null,
             scheduledAt,
             serviceType,
             status,
@@ -280,7 +292,29 @@ export const executeVisitImport = async ({
           message: error instanceof Error ? error.message : 'Error desconocido',
         });
       }
+    };
+
+    for (const job of jobs) {
+      const created = await tx.job.create({
+        data: {
+          tenantId,
+          clientId: job.clientId,
+          importId,
+          serviceType: job.serviceType,
+          // El tipo lo define la primera aplicación: un tratamiento es de abono
+          // o especial entero, no mitad y mitad.
+          visitType:
+            (job.rows[0].values.visitType as 'CONTRACT' | 'SPECIAL' | undefined) ??
+            'SPECIAL',
+          totalApplications: job.totalApplications,
+        },
+      });
+      jobsCreated++;
+
+      for (const row of job.rows) await writeVisit(row, created.id);
     }
+
+    for (const row of loose) await writeVisit(row, null);
 
     await tx.importHistory.create({
       data: {
@@ -302,7 +336,15 @@ export const executeVisitImport = async ({
       },
     });
 
-    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+    return {
+      importId,
+      imported,
+      updated: 0,
+      skipped,
+      failed: errors.length,
+      errors,
+      jobsCreated,
+    };
   });
 
   await recordAudit({
@@ -315,6 +357,7 @@ export const executeVisitImport = async ({
       importadas: outcome.imported,
       omitidas: outcome.skipped,
       fallidas: outcome.failed,
+      trabajos: outcome.jobsCreated,
     },
   });
 
@@ -347,10 +390,15 @@ export const rollbackImport = async ({
     const where = { ...tenantWhere(tenantId), importId };
     const data = { deletedAt: new Date() };
 
-    const deleted =
-      record.entityType === 'visits'
-        ? await tx.visit.updateMany({ where, data })
-        : await tx.client.updateMany({ where, data });
+    let deleted: { count: number };
+    if (record.entityType === 'visits') {
+      deleted = await tx.visit.updateMany({ where, data });
+      // Y los trabajos que se hayan inferido en ese mismo lote: sin sus visitas
+      // quedarían pidiendo aplicaciones de un tratamiento que ya no existe.
+      await tx.job.updateMany({ where, data });
+    } else {
+      deleted = await tx.client.updateMany({ where, data });
+    }
 
     await tx.importHistory.update({
       where: { id: importId },

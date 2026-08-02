@@ -480,6 +480,16 @@ export const validateRows = ({
           break;
         }
 
+        case 'integer': {
+          const parsed = parseNumber(raw);
+          if (parsed === null || !Number.isFinite(parsed) || parsed < 1) {
+            warn('No es un número válido. Se ignora ese dato.');
+            break;
+          }
+          values[signature.field] = Math.round(parsed);
+          break;
+        }
+
         case 'list':
           values[signature.field] = parseList(raw);
           break;
@@ -562,6 +572,106 @@ export type ResolvedRows = {
  * Se mantiene pura recibiendo los clientes como parámetro, así el preview puede
  * mostrar los no encontrados antes de escribir nada.
  */
+export type ResolvedRow = PreparedRow & { clientId: string };
+
+export type ImportedJob = {
+  /** Identificador dentro del lote, para enlazar las filas con su trabajo. */
+  key: string;
+  clientId: string;
+  serviceType: string | null;
+  totalApplications: number;
+  /** Las filas que componen el trabajo, en orden de aplicación. */
+  rows: ResolvedRow[];
+};
+
+/**
+ * Infiere qué visitas de la planilla forman un mismo trabajo multi-visita.
+ *
+ * Acá se agrupa por cliente + servicio + total de aplicaciones, que es
+ * *exactamente* el alambre que sacamos del runtime cuando `Job` pasó a ser una
+ * fila. La diferencia no es cosmética: aquello estaba mal porque usaba el
+ * agrupamiento como la **identidad** del trabajo, así que cambiar la cantidad de
+ * aplicaciones lo partía en dos. Acá es una **inferencia por única vez**: la
+ * planilla no trae ningún id de trabajo, así que agrupar es la única opción, y
+ * el resultado se persiste como un `Job` de verdad que ya no depende de esto.
+ *
+ * Un trabajo se corta cuando la secuencia vuelve a empezar (aparece un número de
+ * aplicación menor o igual al anterior) o cuando ya se completó. Eso separa dos
+ * tratamientos iguales del mismo cliente en fechas distintas sin inventar
+ * ventanas de tiempo arbitrarias.
+ */
+export const groupIntoJobs = (
+  rows: ResolvedRow[]
+): { jobs: ImportedJob[]; loose: ResolvedRow[] } => {
+  const loose: ResolvedRow[] = [];
+  const candidates = new Map<string, ResolvedRow[]>();
+
+  for (const row of rows) {
+    const total = row.values.totalApplications as number | undefined;
+    if (!total || total <= 1) {
+      loose.push(row);
+      continue;
+    }
+
+    const serviceType = String(row.values.serviceType ?? '');
+    const key = `${row.clientId}|${normalise(serviceType)}|${total}`;
+    const group = candidates.get(key);
+    if (group) group.push(row);
+    else candidates.set(key, [row]);
+  }
+
+  const jobs: ImportedJob[] = [];
+
+  for (const [key, group] of candidates) {
+    const sorted = [...group].sort((a, b) => {
+      const dateA = (a.values.scheduledAt as Date | undefined)?.getTime() ?? 0;
+      const dateB = (b.values.scheduledAt as Date | undefined)?.getTime() ?? 0;
+      if (dateA !== dateB) return dateA - dateB;
+      return a.row - b.row;
+    });
+
+    const total = sorted[0].values.totalApplications as number;
+    let current: ResolvedRow[] = [];
+    let lastNumber = 0;
+
+    const flush = () => {
+      if (current.length === 0) return;
+      jobs.push({
+        key: `${key}#${jobs.length}`,
+        clientId: current[0].clientId,
+        serviceType: (current[0].values.serviceType as string | undefined) ?? null,
+        totalApplications: total,
+        rows: current,
+      });
+      current = [];
+      lastNumber = 0;
+    };
+
+    for (const row of sorted) {
+      const explicit = row.values.applicationNumber as number | undefined;
+      // Sin número explícito, la posición dentro del trabajo alcanza.
+      let number = explicit ?? lastNumber + 1;
+
+      // La secuencia volvió a empezar, o el trabajo anterior ya está completo.
+      if ((explicit !== undefined && explicit <= lastNumber) || current.length >= total) {
+        flush();
+        // Recalcular después del corte: el implícito arranca de nuevo en 1.
+        number = explicit ?? 1;
+      }
+
+      current.push({
+        ...row,
+        values: { ...row.values, applicationNumber: number },
+      });
+      lastNumber = number;
+    }
+
+    flush();
+  }
+
+  return { jobs, loose };
+};
+
 export const resolveClientRefs = ({
   rows,
   clients,

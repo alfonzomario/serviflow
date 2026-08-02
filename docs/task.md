@@ -430,6 +430,31 @@ Sin estado mapeado, lo que ya pasó entra como `COMPLETED` y lo que viene como
 Las firmas pasaron de una lista de campos a un `EntityConfig` por entidad, con
 sus campos de deduplicación. Sumar una entidad sigue siendo una entrada más.
 
+### Importar tratamientos, no solo visitas sueltas
+
+Una planilla con "aplicación 2 de 3" entraba como visitas sin `Job`, así que
+Pendientes nunca pedía la aplicación faltante: un tratamiento en curso se perdía
+sin que se note. Ahora esas filas se agrupan y se persiste un `Job` real.
+
+`groupIntoJobs` agrupa por cliente + servicio + total, y corta cuando la
+secuencia vuelve a empezar (aparece un número menor o igual al anterior) o
+cuando el trabajo ya se completó. Eso separa dos tratamientos iguales del mismo
+cliente en fechas distintas sin inventar ventanas de tiempo arbitrarias —
+verificado con dos tratamientos de Hormigas del mismo cliente, enero y mayo, que
+quedaron como dos trabajos.
+
+Vale aclarar por qué esto no es volver atrás: la clave de agrupamiento es la
+misma que sacamos del runtime, pero **aquello estaba mal porque era la identidad
+del trabajo** — por eso cambiar la cantidad de aplicaciones lo partía en dos.
+Acá es una inferencia por única vez, porque la planilla no trae ningún id, y el
+resultado se persiste como una fila que ya no depende del agrupamiento.
+
+Deshacer una importación de visitas ahora borra también los trabajos que
+infirió; si no quedaban pidiendo aplicaciones de un tratamiento sin visitas.
+
+Verificado contra la base: 7 filas → 3 trabajos + 1 visita suelta, y Pendientes
+pasó a pedir "aplicación 3 de 3 — Ana Fernández · Termitas".
+
 ## Next Steps
 - [ ] Use `labelRecurringAgreement` / `labelMultiVisitJob` in the remaining
       screens — the hook exists and Pendientes, the visit form and the jobs

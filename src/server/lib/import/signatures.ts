@@ -16,6 +16,7 @@ export type FieldType =
   | 'phone'
   | 'date'
   | 'currency'
+  | 'integer'
   | 'enum'
   | 'list';
 
@@ -228,6 +229,36 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
       SPECIAL: ['especial', 'puntual', 'special', 'ocasional', 'extra', 'no'],
     },
     hint: 'Solo las de abono cubren el período recurrente del cliente.',
+  },
+  {
+    field: 'applicationNumber',
+    label: 'Nº de aplicación',
+    aliases: [
+      'aplicacion',
+      'aplicación',
+      'nro aplicacion',
+      'numero de aplicacion',
+      'número de aplicación',
+      'application',
+      'visita nro',
+      'orden',
+    ],
+    type: 'integer',
+    hint: 'Qué número de aplicación es dentro del tratamiento. Va junto con el total.',
+  },
+  {
+    field: 'totalApplications',
+    label: 'Total de aplicaciones',
+    aliases: [
+      'total aplicaciones',
+      'total de aplicaciones',
+      'cantidad de aplicaciones',
+      'aplicaciones',
+      'total',
+      'de',
+    ],
+    type: 'integer',
+    hint: 'Mapeá esta columna para que las visitas se agrupen en un tratamiento.',
   },
   {
     field: 'price',

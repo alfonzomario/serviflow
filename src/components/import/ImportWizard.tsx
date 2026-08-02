@@ -560,6 +560,8 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   // ── Paso 4: resultado ────────────────────────────────────────────────────
   if (step === "done" && execute.data) {
     const { imported, updated, skipped, failed } = execute.data
+    const jobsCreated =
+      "jobsCreated" in execute.data ? (execute.data.jobsCreated as number) : 0
 
     return (
       <Card className="p-8 text-center">
@@ -586,6 +588,15 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             </span>
           )}
         </div>
+
+        {jobsCreated > 0 && (
+          <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
+            Se armaron <strong className="tabular-nums">{jobsCreated}</strong>{" "}
+            {jobsCreated === 1 ? "tratamiento" : "tratamientos"} con las filas que
+            declaraban &ldquo;N de M&rdquo;. Los que quedaron a medias aparecen en
+            Pendientes pidiendo la aplicación que falta.
+          </p>
+        )}
 
         <div className="flex flex-wrap justify-center gap-2">
           <Button variant="outline" onClick={reset}>

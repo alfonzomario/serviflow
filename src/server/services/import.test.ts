@@ -7,6 +7,7 @@ import {
   parseImportDate,
   parseList,
   parseNumber,
+  groupIntoJobs,
   resolveClientRefs,
   validateRows,
   type ColumnMapping,
@@ -485,5 +486,133 @@ describe('resolveClientRefs', () => {
 
     expect(result.resolved.map((row) => row.clientId)).toEqual(['c1', 'c2'])
     expect(result.unmatched.map((row) => row.row)).toEqual([2])
+  })
+})
+
+describe('groupIntoJobs', () => {
+  const app = (
+    row: number,
+    number: number | undefined,
+    total: number | undefined,
+    extra: { day?: number; clientId?: string; serviceType?: string } = {}
+  ) => ({
+    row,
+    clientId: extra.clientId ?? 'c1',
+    dedupeKey: `${row}`,
+    values: {
+      scheduledAt: new Date(2026, 0, extra.day ?? row),
+      serviceType: extra.serviceType ?? 'Cucarachas',
+      ...(number !== undefined ? { applicationNumber: number } : {}),
+      ...(total !== undefined ? { totalApplications: total } : {}),
+    } as Record<string, unknown>,
+  })
+
+  it('deja sueltas las visitas que no declaran un total', () => {
+    const { jobs, loose } = groupIntoJobs([app(1, undefined, undefined)])
+
+    expect(jobs).toHaveLength(0)
+    expect(loose).toHaveLength(1)
+  })
+
+  it('no arma trabajo con un total de 1', () => {
+    const { jobs, loose } = groupIntoJobs([app(1, 1, 1)])
+
+    expect(jobs).toHaveLength(0)
+    expect(loose).toHaveLength(1)
+  })
+
+  it('agrupa las aplicaciones de un mismo tratamiento', () => {
+    const { jobs, loose } = groupIntoJobs([app(1, 1, 3), app(2, 2, 3)])
+
+    expect(loose).toHaveLength(0)
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0]).toMatchObject({ totalApplications: 3, clientId: 'c1' })
+    expect(jobs[0].rows).toHaveLength(2)
+  })
+
+  it('separa dos tratamientos iguales cuando la secuencia vuelve a empezar', () => {
+    // 1,2,1,2 son dos tratamientos de dos, no uno de cuatro.
+    const { jobs } = groupIntoJobs([
+      app(1, 1, 2, { day: 1 }),
+      app(2, 2, 2, { day: 2 }),
+      app(3, 1, 2, { day: 20 }),
+      app(4, 2, 2, { day: 21 }),
+    ])
+
+    expect(jobs).toHaveLength(2)
+    expect(jobs.every((job) => job.rows.length === 2)).toBe(true)
+  })
+
+  it('corta cuando el trabajo ya está completo, aunque no haya números', () => {
+    const { jobs } = groupIntoJobs([
+      app(1, undefined, 2),
+      app(2, undefined, 2),
+      app(3, undefined, 2),
+    ])
+
+    expect(jobs).toHaveLength(2)
+    expect(jobs[0].rows).toHaveLength(2)
+    expect(jobs[1].rows).toHaveLength(1)
+  })
+
+  it('numera las aplicaciones cuando la planilla no las trae', () => {
+    const { jobs } = groupIntoJobs([app(1, undefined, 3), app(2, undefined, 3)])
+
+    expect(jobs[0].rows.map((row) => row.values.applicationNumber)).toEqual([1, 2])
+  })
+
+  it('reinicia la numeración implícita después de un corte', () => {
+    const { jobs } = groupIntoJobs([
+      app(1, undefined, 2),
+      app(2, undefined, 2),
+      app(3, undefined, 2),
+    ])
+
+    expect(jobs[0].rows.map((row) => row.values.applicationNumber)).toEqual([1, 2])
+    expect(jobs[1].rows.map((row) => row.values.applicationNumber)).toEqual([1])
+  })
+
+  it('ordena por fecha aunque la planilla venga desordenada', () => {
+    const { jobs } = groupIntoJobs([app(1, 2, 2, { day: 20 }), app(2, 1, 2, { day: 5 })])
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].rows.map((row) => row.row)).toEqual([2, 1])
+  })
+
+  it('no mezcla tratamientos de clientes distintos', () => {
+    const { jobs } = groupIntoJobs([
+      app(1, 1, 2, { clientId: 'c1' }),
+      app(2, 1, 2, { clientId: 'c2' }),
+    ])
+
+    expect(jobs).toHaveLength(2)
+  })
+
+  it('no mezcla servicios distintos del mismo cliente', () => {
+    const { jobs } = groupIntoJobs([
+      app(1, 1, 2, { serviceType: 'Cucarachas' }),
+      app(2, 1, 2, { serviceType: 'Roedores' }),
+    ])
+
+    expect(jobs).toHaveLength(2)
+  })
+
+  it('separa un tratamiento de 2 de uno de 3 del mismo cliente y servicio', () => {
+    const { jobs } = groupIntoJobs([app(1, 1, 2), app(2, 1, 3)])
+
+    expect(jobs).toHaveLength(2)
+    expect(jobs.map((job) => job.totalApplications).sort()).toEqual([2, 3])
+  })
+
+  it('separa sueltas de agrupadas en el mismo archivo', () => {
+    const { jobs, loose } = groupIntoJobs([
+      app(1, 1, 3),
+      app(2, undefined, undefined),
+      app(3, 2, 3),
+    ])
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].rows).toHaveLength(2)
+    expect(loose.map((row) => row.row)).toEqual([2])
   })
 })

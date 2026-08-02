@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 103 tests
+npm test             # 115 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -112,6 +112,18 @@ Las visitas importadas **no** generan transacciones ni pasan por
 `onVisitStatusChange`: son historial, no trabajo recién completado. Si no,
 importar dos años de visitas cobradas inventaría dos años de ingresos hoy.
 
+**Las filas que declaran "N de M" se agrupan en `Job` de verdad.** Sin eso
+entraban como visitas sueltas y Pendientes nunca pedía la aplicación faltante:
+un tratamiento en curso se perdía sin que se note. `groupIntoJobs` corta cuando
+la secuencia vuelve a empezar o cuando el trabajo se completó, así que dos
+tratamientos iguales del mismo cliente en fechas distintas no se fusionan.
+
+> Ese agrupamiento usa la misma clave que sacamos del runtime
+> (cliente + servicio + total). No es una recaída: aquello estaba mal porque era
+> la **identidad** del trabajo, y por eso cambiar la cantidad lo partía en dos.
+> Acá es una **inferencia por única vez** — la planilla no trae ningún id — y el
+> resultado se persiste como una fila que ya no depende del agrupamiento.
+
 **Historial** lee `audit_logs`, que hasta ahora se escribían y no los leía nadie.
 Append-only: no hay create/update/delete. El filtro solo ofrece las acciones que
 algo escribe de verdad (`CREATE`, `UPDATE`, `DELETE`, `STATUS_CHANGE`) — un
@@ -144,7 +156,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes. Puro, sin Prisma, 61 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 73 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -162,9 +174,6 @@ solo", y "cancelada salda / eliminada vuelve".
    - **Transacciones y notas** no se pueden importar. Transacciones es la que
      falta para cerrar Finanzas con datos históricos; la resolución de cliente
      ya está resuelta y es reutilizable (`resolveClientRefs`).
-   - **No importa trabajos multi-visita.** Una planilla con "aplicación 2 de 3"
-     entra como visitas sueltas, sin `Job`. Habría que agrupar por
-     cliente + servicio y crear el trabajo.
    - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
      exportar es un clic en los dos, pero xlsx directo requiere elegir una
      librería — `xlsx`/SheetJS tiene avisos de seguridad conocidos, así que la
@@ -190,7 +199,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (61) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (73) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.
