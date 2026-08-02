@@ -1,10 +1,21 @@
 import { router, permissionProcedure } from '../trpc';
 import { z } from 'zod';
-import { tenantOnly } from '../../lib/tenant-context';
-import { autoMapColumns, parseDelimited, validateRows } from '../../services/import';
-import { executeClientImport, rollbackImport } from '../../services/import.service';
-import { signaturesFor } from '../../lib/import/signatures';
+import { tenantOnly, tenantWhere } from '../../lib/tenant-context';
+import {
+  autoMapColumns,
+  parseDelimited,
+  resolveClientRefs,
+  validateRows,
+  type PreparedRow,
+} from '../../services/import';
+import {
+  executeClientImport,
+  executeVisitImport,
+  rollbackImport,
+} from '../../services/import.service';
+import { configFor, ENTITIES, signaturesFor } from '../../lib/import/signatures';
 import { TRPCError } from '@trpc/server';
+import { db } from '../../db';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -18,7 +29,7 @@ import type { Prisma } from '@prisma/client';
  * es una operación de dueño, no algo que haga un operador.
  */
 
-const EntityEnum = z.enum(['clients']);
+const EntityEnum = z.enum(['clients', 'visits']);
 const StrategyEnum = z.enum(['SKIP', 'UPDATE', 'CREATE_NEW']);
 
 const MappingSchema = z.object({
@@ -32,7 +43,36 @@ const MappingSchema = z.object({
 // y evita que un archivo enorme quede colgado en memoria.
 const MAX_CONTENT = 5_000_000;
 
+/**
+ * Engancha las filas con sus clientes cuando la entidad lo necesita. Devuelve
+ * null para las entidades que no cuelgan de nadie, como clientes.
+ */
+const resolveForEntity = async (
+  tenantId: string,
+  entity: 'clients' | 'visits',
+  rows: PreparedRow[]
+) => {
+  const clientNameField = configFor(entity).clientNameField;
+  if (!clientNameField) return null;
+
+  const clients = await db.client.findMany({
+    where: tenantWhere(tenantId),
+    select: { id: true, name: true },
+  });
+
+  return resolveClientRefs({ rows, clients, clientNameField });
+};
+
 export const importRouter = router({
+  /** Las entidades importables, para el selector del primer paso. */
+  entities: permissionProcedure('settings', 'write').query(() =>
+    (Object.keys(ENTITIES) as (keyof typeof ENTITIES)[]).map((key) => ({
+      entity: key,
+      label: ENTITIES[key].label,
+      description: ENTITIES[key].description,
+    }))
+  ),
+
   /** Los campos disponibles, para armar los selectores del mapeo. */
   fields: permissionProcedure('settings', 'write')
     .input(z.object({ entity: EntityEnum }))
@@ -87,7 +127,7 @@ export const importRouter = router({
         mappings: z.array(MappingSchema),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { rows } = parseDelimited(input.content);
       const result = validateRows({
         rows,
@@ -95,15 +135,25 @@ export const importRouter = router({
         entity: input.entity,
       });
 
+      // Las visitas cuelgan de un cliente que tiene que existir. Resolverlo acá
+      // y no al ejecutar es lo que permite avisar "estos 12 nombres no están"
+      // antes de escribir nada.
+      const resolution = await resolveForEntity(ctx.tenantId, input.entity, result.validRows);
+
       return {
         totalRows: result.totalRows,
-        counts: result.counts,
+        counts: {
+          ...result.counts,
+          valid: resolution ? resolution.resolved.length : result.counts.valid,
+        },
         missingRequired: result.missingRequired,
         // Solo los primeros: una planilla con 2000 problemas no tiene por qué
         // viajar entera para mostrar una lista que nadie va a leer completa.
         issues: result.issues.slice(0, 100),
         totalIssues: result.issues.length,
-        preview: result.validRows.slice(0, 20),
+        preview: (resolution?.resolved ?? result.validRows).slice(0, 20),
+        unmatchedCount: resolution?.unmatched.length ?? 0,
+        unmatchedNames: resolution?.unmatchedNames.slice(0, 50) ?? [],
       };
     }),
 
@@ -139,14 +189,42 @@ export const importRouter = router({
         });
       }
 
-      return executeClientImport({
+      const common = {
         tenantId: ctx.tenantId,
         userId: ctx.session.user.id,
-        rows: result.validRows,
         strategy: input.strategy,
         fileName: input.fileName ?? null,
         columnMapping: input.mappings as unknown as Prisma.InputJsonValue,
         totalRows: result.totalRows,
+      };
+
+      if (input.entity === 'visits') {
+        const resolution = await resolveForEntity(
+          ctx.tenantId,
+          'visits',
+          result.validRows
+        );
+
+        if (!resolution || resolution.resolved.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'Ninguna fila coincide con un cliente existente. Importá primero los clientes.',
+          });
+        }
+
+        return executeVisitImport({
+          ...common,
+          rows: resolution.resolved,
+          // Las filas sin cliente cuentan como no importadas, igual que las que
+          // el motor descartó.
+          errorRows: result.counts.errors + resolution.unmatched.length,
+        });
+      }
+
+      return executeClientImport({
+        ...common,
+        rows: result.validRows,
         errorRows: result.counts.errors,
       });
     }),

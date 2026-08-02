@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 91 tests
+npm test             # 103 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -95,8 +95,22 @@ Solicitudes, Pendientes, Finanzas, Notas, Equipo, Historial, Importar, Ajustes,
 Onboarding. **El nav no linkea a nada que no exista**: el Asesor IA sale recién
 cuando tenga página.
 
-**Importador** — el wizard de la Fase 5, funcionando para clientes: subir CSV →
-mapeo automático → preview con avisos → importar → deshacer. Ver más abajo.
+**Importador** — el wizard de la Fase 5, funcionando para **clientes y visitas**:
+subir CSV → mapeo automático → preview con avisos → importar → deshacer.
+
+Importar el historial de visitas no es un extra: sin él, un negocio que importa
+200 clientes con abono abre Pendientes y ve 200 items venciendo hoy, porque no
+hay visita previa con la cual calcular el próximo vencimiento. Verificado — al
+importar historial, `recurring` pasa de 1 a 0 en la demo.
+
+Las visitas se enganchan al cliente por **nombre exacto normalizado, sin
+adivinar**. Una visita colgada del cliente equivocado no rompe nada visible pero
+corrompe Pendientes en silencio: le salda el período a quien no corresponde. Se
+rechaza la fila y se muestra qué nombre no apareció.
+
+Las visitas importadas **no** generan transacciones ni pasan por
+`onVisitStatusChange`: son historial, no trabajo recién completado. Si no,
+importar dos años de visitas cobradas inventaría dos años de ingresos hoy.
 
 **Historial** lee `audit_logs`, que hasta ahora se escribían y no los leía nadie.
 Append-only: no hay create/update/delete. El filtro solo ofrece las acciones que
@@ -130,7 +144,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar. Puro, sin Prisma, 49 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes. Puro, sin Prisma, 61 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -144,11 +158,13 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
-1. **El importador solo hace clientes y solo CSV.**
-   - **Visitas y transacciones** son el paso siguiente. Necesitan algo que
-     clientes no: resolver a qué cliente pertenece cada fila (por nombre, que es
-     lo único que suele traer la planilla). Esa resolución difusa es el trabajo
-     real, no el parseo.
+1. **Lo que le falta al importador.**
+   - **Transacciones y notas** no se pueden importar. Transacciones es la que
+     falta para cerrar Finanzas con datos históricos; la resolución de cliente
+     ya está resuelta y es reutilizable (`resolveClientRefs`).
+   - **No importa trabajos multi-visita.** Una planilla con "aplicación 2 de 3"
+     entra como visitas sueltas, sin `Job`. Habría que agrupar por
+     cliente + servicio y crear el trabajo.
    - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
      exportar es un clic en los dos, pero xlsx directo requiere elegir una
      librería — `xlsx`/SheetJS tiene avisos de seguridad conocidos, así que la
@@ -156,6 +172,9 @@ solo", y "cancelada salda / eliminada vuelve".
    - **Sin límites por plan.** El plan maestro pide Free = 50 filas y 1
      importación. No está: la tabla `Plan` existe pero no hay nada que lea la
      cuota. Va junto con la facturación.
+   - **No hay creación de clientes al vuelo** al importar visitas: si el cliente
+     no existe, la fila queda afuera. Es deliberado, pero un toggle "crear los
+     que falten" ahorraría un paso en una migración grande.
 
 2. **Asesor IA.** Router `ai` stub, sin página. Es lo que hacía el prompt de la
    app vieja (`legacy/code.gs:1816`). `TenantSettings` ya guarda `aiProvider` y
@@ -171,7 +190,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (49) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (61) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.

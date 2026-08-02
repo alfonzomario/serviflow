@@ -37,10 +37,22 @@ export type ColumnSignature = {
   hint?: string;
 };
 
-export type ImportEntity = 'clients';
+export type ImportEntity = 'clients' | 'visits';
 
-export const ENTITY_LABELS: Record<ImportEntity, string> = {
-  clients: 'Clientes',
+export type EntityConfig = {
+  label: string;
+  description: string;
+  fields: ColumnSignature[];
+  /**
+   * Con qué campos se decide que dos filas son la misma cosa. Se comparan
+   * normalizados y concatenados.
+   */
+  dedupeFields: string[];
+  /**
+   * Si la entidad cuelga de un cliente, cuál es el campo del archivo que trae
+   * su nombre. La resolución contra los clientes existentes se hace aparte.
+   */
+  clientNameField?: string;
 };
 
 const CLIENT_SIGNATURES: ColumnSignature[] = [
@@ -143,13 +155,134 @@ const CLIENT_SIGNATURES: ColumnSignature[] = [
   },
 ];
 
-export const SIGNATURES: Record<ImportEntity, ColumnSignature[]> = {
-  clients: CLIENT_SIGNATURES,
+/**
+ * Visitas. A diferencia de clientes, una visita no se sostiene sola: cuelga de
+ * un cliente que ya tiene que existir. Por eso `clientName` es obligatorio y se
+ * resuelve contra la base antes de escribir nada.
+ *
+ * Importar el historial de visitas no es un extra: sin él, un negocio que
+ * importa 200 clientes con abono abre Pendientes y ve 200 items venciendo hoy,
+ * porque no hay ninguna visita previa con la cual calcular el próximo
+ * vencimiento.
+ */
+const VISIT_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'clientName',
+    label: 'Cliente',
+    aliases: [
+      'cliente',
+      'client',
+      'nombre',
+      'name',
+      'razon social',
+      'razón social',
+      'nombre del cliente',
+    ],
+    type: 'string',
+    required: true,
+    hint: 'Se busca por nombre entre los clientes que ya tenés cargados.',
+  },
+  {
+    field: 'scheduledAt',
+    label: 'Fecha',
+    aliases: [
+      'fecha',
+      'date',
+      'dia',
+      'día',
+      'fecha visita',
+      'fecha de visita',
+      'fecha servicio',
+      'fecha del servicio',
+    ],
+    type: 'date',
+    required: true,
+  },
+  {
+    field: 'serviceType',
+    label: 'Tipo de servicio',
+    aliases: ['servicio', 'tipo de servicio', 'service', 'tratamiento', 'trabajo', 'plaga'],
+    type: 'string',
+  },
+  {
+    field: 'status',
+    label: 'Estado',
+    aliases: ['estado', 'status', 'situacion', 'situación'],
+    type: 'enum',
+    enumValues: {
+      COMPLETED: ['realizada', 'completada', 'hecha', 'done', 'completed', 'ok', 'si', 'sí'],
+      CONFIRMED: ['confirmada', 'confirmed', 'agendada'],
+      PENDING_CONFIRM: ['programada', 'scheduled', 'pendiente', 'a confirmar'],
+      CANCELLED: ['cancelada', 'cancelled', 'canceled', 'anulada'],
+      SKIPPED: ['omitida', 'saltada', 'skipped', 'no se hizo'],
+    },
+    hint: 'Sin mapear, las visitas con fecha pasada entran como completadas.',
+  },
+  {
+    field: 'visitType',
+    label: 'Tipo de visita',
+    aliases: ['tipo', 'modalidad', 'tipo de visita', 'abono'],
+    type: 'enum',
+    enumValues: {
+      CONTRACT: ['abono', 'contrato', 'contract', 'mensual', 'recurrente', 'si', 'sí'],
+      SPECIAL: ['especial', 'puntual', 'special', 'ocasional', 'extra', 'no'],
+    },
+    hint: 'Solo las de abono cubren el período recurrente del cliente.',
+  },
+  {
+    field: 'price',
+    label: 'Precio',
+    aliases: ['precio', 'price', 'monto', 'valor', 'importe', 'costo', 'tarifa', 'cobrado'],
+    type: 'currency',
+  },
+  {
+    field: 'paymentStatus',
+    label: 'Cobro',
+    aliases: ['cobro', 'pago', 'pagado', 'payment', 'cobrado', 'estado de pago'],
+    type: 'enum',
+    enumValues: {
+      PAID: ['pagado', 'cobrado', 'paid', 'si', 'sí', 'ok'],
+      PENDING: ['pendiente', 'debe', 'a cobrar', 'no', 'impago'],
+      WAIVED: ['sin cargo', 'bonificado', 'gratis', 'waived'],
+    },
+  },
+  {
+    field: 'notes',
+    label: 'Notas',
+    aliases: ['notas', 'notes', 'observaciones', 'comentarios', 'obs', 'detalle'],
+    type: 'string',
+  },
+];
+
+export const ENTITIES: Record<ImportEntity, EntityConfig> = {
+  clients: {
+    label: 'Clientes',
+    description: 'Tu cartera: nombre, contacto, dirección y tipo de relación.',
+    fields: CLIENT_SIGNATURES,
+    dedupeFields: ['name', 'address'],
+  },
+  visits: {
+    label: 'Visitas',
+    description:
+      'El historial de trabajos hechos. Importalo después de los clientes: cada visita se engancha al cliente por nombre.',
+    fields: VISIT_SIGNATURES,
+    dedupeFields: ['clientName', 'scheduledAt', 'serviceType'],
+    clientNameField: 'clientName',
+  },
 };
 
-export const signaturesFor = (entity: ImportEntity): ColumnSignature[] => SIGNATURES[entity];
+export const ENTITY_LABELS: Record<ImportEntity, string> = {
+  clients: ENTITIES.clients.label,
+  visits: ENTITIES.visits.label,
+};
+
+export const configFor = (entity: ImportEntity): EntityConfig => ENTITIES[entity];
+
+export const signaturesFor = (entity: ImportEntity): ColumnSignature[] =>
+  ENTITIES[entity].fields;
 
 export const signatureOf = (
   entity: ImportEntity,
   field: string
-): ColumnSignature | undefined => SIGNATURES[entity].find((sig) => sig.field === field);
+): ColumnSignature | undefined =>
+  ENTITIES[entity].fields.find((sig) => sig.field === field);

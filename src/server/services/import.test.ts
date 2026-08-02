@@ -7,6 +7,7 @@ import {
   parseImportDate,
   parseList,
   parseNumber,
+  resolveClientRefs,
   validateRows,
   type ColumnMapping,
 } from './import';
@@ -346,3 +347,143 @@ describe('validateRows', () => {
     expect(result.validRows[0].values).toEqual({ name: 'Ana' });
   });
 });
+
+describe('visitas', () => {
+  const build = (csv: string) => {
+    const { headers, rows } = parseDelimited(csv)
+    return validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'visits'),
+      entity: 'visits',
+    })
+  }
+
+  it('reconoce los encabezados típicos de una planilla de visitas', () => {
+    const mappings = autoMapColumns(
+      ['Cliente', 'Fecha', 'Servicio', 'Estado', 'Precio', 'Cobro'],
+      'visits'
+    )
+
+    expect(mapOf(mappings)).toEqual({
+      Cliente: 'clientName',
+      Fecha: 'scheduledAt',
+      Servicio: 'serviceType',
+      Estado: 'status',
+      Precio: 'price',
+      Cobro: 'paymentStatus',
+    })
+  })
+
+  it('exige cliente y fecha', () => {
+    expect(build('Servicio\nFumigación').missingRequired).toEqual(
+      expect.arrayContaining(['Cliente', 'Fecha'])
+    )
+  })
+
+  it('rechaza la fila cuando la fecha no se entiende', () => {
+    const result = build('Cliente,Fecha\nAna,cuando se pueda')
+
+    expect(result.counts.errors).toBe(1)
+    expect(result.validRows).toHaveLength(0)
+  })
+
+  it('normaliza los estados como los escribe cada uno', () => {
+    const result = build(
+      'Cliente,Fecha,Estado\nAna,01/03/2026,realizada\nBeto,02/03/2026,cancelada'
+    )
+
+    expect(result.validRows[0].values.status).toBe('COMPLETED')
+    expect(result.validRows[1].values.status).toBe('CANCELLED')
+  })
+
+  it('entiende el precio en formato es-AR', () => {
+    const result = build('Cliente,Fecha,Precio\nAna,01/03/2026,"$ 25.000"')
+
+    expect(result.validRows[0].values.price).toBe(25000)
+  })
+
+  it('deduplica por cliente + fecha + servicio, no por nombre', () => {
+    // Dos visitas al mismo cliente en fechas distintas no son un duplicado.
+    const distintas = build(
+      'Cliente,Fecha,Servicio\nAna,01/03/2026,Control\nAna,15/03/2026,Control'
+    )
+    expect(distintas.issues).toHaveLength(0)
+
+    const repetida = build(
+      'Cliente,Fecha,Servicio\nAna,01/03/2026,Control\nAna,01/03/2026,Control'
+    )
+    expect(repetida.issues).toHaveLength(1)
+    expect(repetida.issues[0].message).toContain('fila 1')
+  })
+})
+
+describe('resolveClientRefs', () => {
+  const clients = [
+    { id: 'c1', name: 'Panadería La Espiga' },
+    { id: 'c2', name: 'Kiosco Don José' },
+  ]
+
+  const rowFor = (clientName: string, row = 1) => ({
+    row,
+    values: { clientName },
+    dedupeKey: `${row}`,
+  })
+
+  const resolve = (rows: ReturnType<typeof rowFor>[], list = clients) =>
+    resolveClientRefs({ rows, clients: list, clientNameField: 'clientName' })
+
+  it('engancha por nombre exacto', () => {
+    const result = resolve([rowFor('Panadería La Espiga')])
+
+    expect(result.resolved[0].clientId).toBe('c1')
+    expect(result.unmatched).toHaveLength(0)
+  })
+
+  it('ignora acentos, mayúsculas y espacios de más', () => {
+    const result = resolve([rowFor('  PANADERIA  la espiga ')])
+
+    expect(result.resolved[0].clientId).toBe('c1')
+  })
+
+  it('deja afuera lo que no encuentra, con el nombre', () => {
+    const result = resolve([rowFor('Ferretería Central')])
+
+    expect(result.resolved).toHaveLength(0)
+    expect(result.unmatched).toEqual([{ row: 1, clientName: 'Ferretería Central' }])
+    expect(result.unmatchedNames).toEqual(['Ferretería Central'])
+  })
+
+  it('no adivina cuando dos clientes se llaman igual', () => {
+    // Colgar la visita del cliente equivocado corrompe Pendientes en silencio,
+    // así que la fila cae como no encontrada y la resuelve una persona.
+    const result = resolve([rowFor('Kiosco Don José')], [
+      { id: 'c2', name: 'Kiosco Don José' },
+      { id: 'c3', name: 'kiosco don jose' },
+    ])
+
+    expect(result.resolved).toHaveLength(0)
+    expect(result.unmatched).toHaveLength(1)
+  })
+
+  it('junta los nombres distintos que faltan, sin repetir', () => {
+    const result = resolve([
+      rowFor('Ferretería Central', 1),
+      rowFor('Ferretería Central', 2),
+      rowFor('Verdulería Norte', 3),
+    ])
+
+    expect(result.unmatched).toHaveLength(3)
+    expect(result.unmatchedNames).toEqual(['Ferretería Central', 'Verdulería Norte'])
+  })
+
+  it('separa resueltas de no resueltas en el mismo archivo', () => {
+    const result = resolve([
+      rowFor('Panadería La Espiga', 1),
+      rowFor('No existe', 2),
+      rowFor('Kiosco Don José', 3),
+    ])
+
+    expect(result.resolved.map((row) => row.clientId)).toEqual(['c1', 'c2'])
+    expect(result.unmatched.map((row) => row.row)).toEqual([2])
+  })
+})

@@ -397,6 +397,39 @@ enum inventado): 5 creados, 1 omitido, 1 descartada, y las filas con dato feo
 entraron sin ese dato. Reimportar el mismo archivo con SKIP no duplicó nada, y
 deshacer devolvió la base al estado inicial.
 
+### Importación de visitas
+
+El importador ya trae historial, no solo la cartera. Eso arregla algo concreto:
+`pending.ts` marca como pendiente a todo contrato sin visitas previas, con
+`dueAt = hoy`. Es deliberado y está tested ("no hay evidencia de que el abono
+existiera antes"), pero significa que quien importaba 200 clientes con abono
+abría Pendientes y veía 200 items venciendo el día uno. Con historial importado
+eso baja solo — verificado contra la base: `recurring` 1 → 0.
+
+**Enganche por nombre exacto normalizado, sin matching difuso.** Adivinar sería
+peor que fallar: una visita colgada del cliente equivocado no rompe nada visible
+en el momento pero corrompe Pendientes en silencio, saldándole el período a
+quien no corresponde. La fila se rechaza y se listan los nombres que no
+aparecieron. Dos clientes con el mismo nombre normalizado hacen que ambos salgan
+del índice, así que esas filas caen como "no encontrado" en vez de elegir una al
+azar.
+
+`resolveClientRefs` se mantuvo pura recibiendo los clientes como parámetro, así
+el preview puede avisar "estas 12 filas no tienen cliente" antes de escribir
+nada.
+
+**Las visitas importadas no generan transacciones** ni pasan por
+`onVisitStatusChange`. Son historial, no trabajo recién completado: importar dos
+años de visitas cobradas habría inventado dos años de ingresos con fecha de hoy
+y dejado Finanzas sin sentido. Verificado — el contador de transacciones no se
+movió.
+
+Sin estado mapeado, lo que ya pasó entra como `COMPLETED` y lo que viene como
+`PENDING_CONFIRM`, que es cómo lee cualquiera una planilla vieja.
+
+Las firmas pasaron de una lista de campos a un `EntityConfig` por entidad, con
+sus campos de deduplicación. Sumar una entidad sigue siendo una entrada más.
+
 ## Next Steps
 - [ ] Use `labelRecurringAgreement` / `labelMultiVisitJob` in the remaining
       screens — the hook exists and Pendientes, the visit form and the jobs

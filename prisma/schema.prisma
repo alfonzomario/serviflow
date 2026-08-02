@@ -284,6 +284,9 @@ model Visit {
   /// This visit's position inside its job. Only meaningful with `jobId` set;
   /// the job holds how many there are in total.
   applicationNumber Int?     @map("application_number")
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId          String?  @map("import_id") @db.Uuid
   notes             String?
   calendarEventId   String?  @map("calendar_event_id") @db.VarChar(255)
   completedAt       DateTime? @map("completed_at")
@@ -303,6 +306,7 @@ model Visit {
   @@index([tenantId, jobId])
   @@index([tenantId, assignedUserId])
   @@index([tenantId, scheduledAt])
+  @@index([tenantId, importId])
   @@map("visits")
 }
 

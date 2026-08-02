@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { toast } from "sonner"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -41,6 +40,7 @@ type Mapping = {
 }
 
 type Strategy = "SKIP" | "UPDATE" | "CREATE_NEW"
+type Entity = "clients" | "visits"
 
 const IGNORE = "__ignore__"
 
@@ -68,6 +68,7 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   const utils = trpc.useUtils()
 
   const [step, setStep] = React.useState<Step>("upload")
+  const [entity, setEntity] = React.useState<Entity>("clients")
   const [fileName, setFileName] = React.useState<string | null>(null)
   const [content, setContent] = React.useState("")
   const [mappings, setMappings] = React.useState<Mapping[]>([])
@@ -76,7 +77,8 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   const [dragging, setDragging] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  const fields = trpc.import.fields.useQuery({ entity: "clients" })
+  const entities = trpc.import.entities.useQuery()
+  const fields = trpc.import.fields.useQuery({ entity })
 
   const analyze = trpc.import.analyze.useMutation({
     onSuccess: (data) => {
@@ -131,7 +133,7 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
     const text = await file.text()
     setFileName(file.name)
     setContent(text)
-    analyze.mutate({ entity: "clients", content: text })
+    analyze.mutate({ entity, content: text })
   }
 
   const setTarget = (index: number, value: string) => {
@@ -161,6 +163,28 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   if (step === "upload") {
     return (
       <div className="space-y-4">
+        <div className="grid gap-2 sm:max-w-md">
+          <Label htmlFor="entity">¿Qué vas a importar?</Label>
+          <Select
+            value={entity}
+            onValueChange={(value) => setEntity(value as Entity)}
+          >
+            <SelectTrigger id="entity">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {entities.data?.map((option) => (
+                <SelectItem key={option.entity} value={option.entity}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {entities.data?.find((option) => option.entity === entity)?.description}
+          </p>
+        </div>
+
         <div
           onDragOver={(event) => {
             event.preventDefault()
@@ -329,7 +353,7 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             disabled={requiredMissing.length > 0 || preview.isPending}
             onClick={() => {
               setError(null)
-              preview.mutate({ entity: "clients", content, mappings })
+              preview.mutate({ entity, content, mappings })
             }}
           >
             {preview.isPending ? "Revisando…" : "Revisar los datos"}
@@ -384,6 +408,34 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             Las filas con aviso <strong>sí se importan</strong>, sin el dato que falló. Solo
             se descartan las que no tienen nombre.
           </p>
+        )}
+
+        {preview.data.unmatchedCount > 0 && (
+          <Card className="border-amber-500/40 p-4">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <div className="min-w-0 space-y-2">
+                <p className="text-sm">
+                  <strong>{preview.data.unmatchedCount}</strong>{" "}
+                  {preview.data.unmatchedCount === 1 ? "fila queda" : "filas quedan"} afuera:
+                  su cliente no existe. Buscamos por nombre exacto — preferimos no importarlas
+                  antes que colgarlas del cliente equivocado, que arruinaría Pendientes sin
+                  que se note.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Importá primero esos clientes, o corregí el nombre en la planilla para que
+                  coincida.
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {preview.data.unmatchedNames.map((name) => (
+                    <Badge key={name} variant="outline" className="font-normal">
+                      {name || "(vacío)"}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
         )}
 
         {(errors.length > 0 || warnings.length > 0) && (
@@ -485,18 +537,20 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             disabled={counts.valid === 0 || execute.isPending}
             onClick={() => {
               setError(null)
-              execute.mutate({
-                entity: "clients",
-                content,
-                mappings,
-                strategy,
-                fileName,
-              })
+              execute.mutate({ entity, content, mappings, strategy, fileName })
             }}
           >
             {execute.isPending
               ? "Importando…"
-              : `Importar ${counts.valid} ${counts.valid === 1 ? "cliente" : "clientes"}`}
+              : `Importar ${counts.valid} ${
+                  entity === "visits"
+                    ? counts.valid === 1
+                      ? "visita"
+                      : "visitas"
+                    : counts.valid === 1
+                      ? "cliente"
+                      : "clientes"
+                }`}
           </Button>
         </div>
       </div>
@@ -539,11 +593,10 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           </Button>
           <Button
             onClick={() => {
-              toast.success("Los clientes ya están en la lista")
-              window.location.href = "/clients"
+              window.location.href = entity === "visits" ? "/agenda" : "/clients"
             }}
           >
-            Ver los clientes
+            {entity === "visits" ? "Ver la agenda" : "Ver los clientes"}
           </Button>
         </div>
 

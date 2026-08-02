@@ -2,7 +2,7 @@ import { db } from '../db';
 import { tenantWhere, tenantOnly } from '../lib/tenant-context';
 import { recordAudit } from './audit.service';
 import type { PreparedRow } from './import';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, VisitStatus } from '@prisma/client';
 
 /**
  * Escribe lo que el motor (`import.ts`) preparó.
@@ -179,6 +179,149 @@ export const executeClientImport = async ({
 };
 
 /**
+ * Escribe el historial de visitas ya resuelto contra clientes existentes.
+ *
+ * Las visitas importadas **no** generan transacciones ni disparan
+ * `onVisitStatusChange`: son historial, no trabajo que acaba de completarse. Si
+ * las pasáramos por ese camino, importar dos años de visitas cobradas inventaría
+ * dos años de ingresos hoy y dejaría Finanzas sin sentido.
+ */
+export const executeVisitImport = async ({
+  tenantId,
+  userId,
+  rows,
+  strategy,
+  fileName,
+  columnMapping,
+  totalRows,
+  errorRows,
+}: {
+  tenantId: string;
+  userId: string;
+  rows: (PreparedRow & { clientId: string })[];
+  strategy: DuplicateStrategy;
+  fileName: string | null;
+  columnMapping: Prisma.InputJsonValue;
+  totalRows: number;
+  errorRows: number;
+}): Promise<ImportOutcome> => {
+  const today = new Date();
+
+  // Las visitas que ya existen para esos clientes, para no duplicar historial
+  // si el archivo se importa dos veces.
+  const clientIds = [...new Set(rows.map((row) => row.clientId))];
+  const existing = await db.visit.findMany({
+    where: { ...tenantWhere(tenantId), clientId: { in: clientIds } },
+    select: { id: true, clientId: true, scheduledAt: true, serviceType: true },
+  });
+
+  const existingKeys = new Set(
+    existing
+      .filter((visit) => visit.scheduledAt !== null)
+      .map(
+        (visit) =>
+          `${visit.clientId}|${(visit.scheduledAt as Date).toISOString().slice(0, 10)}|${
+            visit.serviceType ?? ''
+          }`.toLowerCase()
+      )
+  );
+
+  const outcome = await db.$transaction(async (tx) => {
+    const importId = crypto.randomUUID();
+    let imported = 0;
+    let skipped = 0;
+    const errors: { row: number; message: string }[] = [];
+    const seen = new Set(existingKeys);
+
+    for (const row of rows) {
+      const scheduledAt = row.values.scheduledAt as Date | undefined;
+      if (!scheduledAt) continue;
+
+      const serviceType = (row.values.serviceType as string | undefined) ?? null;
+      const key = `${row.clientId}|${scheduledAt
+        .toISOString()
+        .slice(0, 10)}|${serviceType ?? ''}`.toLowerCase();
+
+      if (seen.has(key) && strategy !== 'CREATE_NEW') {
+        skipped++;
+        continue;
+      }
+
+      // Sin estado mapeado, lo que ya pasó se da por hecho y lo que viene queda
+      // por confirmar. Es la lectura que hace cualquiera de una planilla vieja.
+      const status =
+        (row.values.status as VisitStatus | undefined) ??
+        (scheduledAt <= today ? 'COMPLETED' : 'PENDING_CONFIRM');
+
+      try {
+        await tx.visit.create({
+          data: {
+            tenantId,
+            clientId: row.clientId,
+            importId,
+            scheduledAt,
+            serviceType,
+            status,
+            visitType:
+              (row.values.visitType as 'CONTRACT' | 'SPECIAL' | undefined) ?? 'SPECIAL',
+            price: (row.values.price as number | undefined) ?? 0,
+            paymentStatus:
+              (row.values.paymentStatus as 'PENDING' | 'PAID' | 'WAIVED' | undefined) ??
+              'PENDING',
+            notes: (row.values.notes as string | undefined) ?? null,
+            completedAt: status === 'COMPLETED' ? scheduledAt : null,
+          },
+        });
+        seen.add(key);
+        imported++;
+      } catch (error) {
+        errors.push({
+          row: row.row,
+          message: error instanceof Error ? error.message : 'Error desconocido',
+        });
+      }
+    }
+
+    await tx.importHistory.create({
+      data: {
+        id: importId,
+        tenantId,
+        userId,
+        entityType: 'visits',
+        fileName,
+        fileType: 'csv',
+        totalRows,
+        importedRows: imported,
+        skippedRows: skipped,
+        errorRows: errorRows + errors.length,
+        errors: errors as unknown as Prisma.InputJsonValue,
+        columnMapping,
+        duplicateStrategy: strategy,
+        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+  });
+
+  await recordAudit({
+    tenantId,
+    userId,
+    action: 'IMPORT',
+    entityType: 'visit',
+    entityId: outcome.importId,
+    changes: {
+      importadas: outcome.imported,
+      omitidas: outcome.skipped,
+      fallidas: outcome.failed,
+    },
+  });
+
+  return outcome;
+};
+
+/**
  * Deshace una importación: borra lógicamente solo las filas que creó.
  *
  * Deliberadamente **no** revierte los `UPDATE`: no guardamos el estado previo,
@@ -195,16 +338,19 @@ export const rollbackImport = async ({
 }) => {
   const record = await db.importHistory.findFirst({
     where: { id: importId, ...tenantOnly(tenantId) },
-    select: { id: true, status: true },
+    select: { id: true, status: true, entityType: true },
   });
   if (!record) return null;
   if (record.status === 'ROLLED_BACK') return { deleted: 0, alreadyRolledBack: true };
 
   const result = await db.$transaction(async (tx) => {
-    const deleted = await tx.client.updateMany({
-      where: { ...tenantWhere(tenantId), importId },
-      data: { deletedAt: new Date() },
-    });
+    const where = { ...tenantWhere(tenantId), importId };
+    const data = { deletedAt: new Date() };
+
+    const deleted =
+      record.entityType === 'visits'
+        ? await tx.visit.updateMany({ where, data })
+        : await tx.client.updateMany({ where, data });
 
     await tx.importHistory.update({
       where: { id: importId },
@@ -218,7 +364,7 @@ export const rollbackImport = async ({
     tenantId,
     userId,
     action: 'IMPORT',
-    entityType: 'client',
+    entityType: record.entityType === 'visits' ? 'visit' : 'client',
     entityId: importId,
     changes: { deshecha: true, eliminados: result.deleted },
   });

@@ -17,6 +17,7 @@
  */
 
 import {
+  configFor,
   signaturesFor,
   type ColumnSignature,
   type ImportEntity,
@@ -305,6 +306,22 @@ export const parseEnum = (raw: string, signature: ColumnSignature): string | nul
 
 // ─── Validación ────────────────────────────────────────────────────────────
 
+/**
+ * Clave de deduplicación. Las fechas se reducen al día: la misma visita
+ * exportada dos veces puede traer horas distintas y sigue siendo la misma.
+ */
+export const dedupeKeyOf = (
+  values: Record<string, unknown>,
+  entity: ImportEntity
+): string =>
+  configFor(entity)
+    .dedupeFields.map((field) => {
+      const value = values[field];
+      if (value instanceof Date) return value.toISOString().slice(0, 10);
+      return normalise(String(value ?? ''));
+    })
+    .join('|');
+
 export type RowIssue = {
   /** Número de fila como lo ve el usuario en su planilla: 1 = primer dato. */
   row: number;
@@ -481,11 +498,9 @@ export const validateRows = ({
 
     if (hasError) return;
 
-    // Dedupe dentro del archivo: mismo nombre + misma dirección. La comparación
-    // contra lo que ya está en la base ocurre al ejecutar, no acá.
-    const dedupeKey = normalise(
-      `${String(values.name ?? '')}|${String(values.address ?? '')}`
-    );
+    // Dedupe dentro del archivo, con los campos que define la entidad. La
+    // comparación contra lo que ya está en la base ocurre al ejecutar, no acá.
+    const dedupeKey = dedupeKeyOf(values, entity);
 
     const firstSeen = seenKeys.get(dedupeKey);
     if (firstSeen !== undefined) {
@@ -519,5 +534,75 @@ export const validateRows = ({
       errors: errorRows.size,
     },
     missingRequired: [],
+  };
+};
+
+// ─── Resolución de clientes ────────────────────────────────────────────────
+
+export type ClientRef = { id: string; name: string };
+
+export type ResolvedRows = {
+  /** Filas que encontraron su cliente, con el `clientId` ya puesto. */
+  resolved: (PreparedRow & { clientId: string })[];
+  /** Filas cuyo nombre de cliente no existe. No se importan. */
+  unmatched: { row: number; clientName: string }[];
+  /** Los nombres distintos que no se encontraron, para mostrarlos juntos. */
+  unmatchedNames: string[];
+};
+
+/**
+ * Engancha cada fila con su cliente, por nombre normalizado.
+ *
+ * **Coincidencia exacta normalizada y nada más.** Adivinar sería peor que
+ * fallar: una visita colgada del cliente equivocado no rompe nada visible en el
+ * momento, pero corrompe Pendientes en silencio — le salda el período a quien no
+ * corresponde y deja debiendo al que sí. Preferimos rechazar la fila y decir qué
+ * nombre no apareció, que es algo que el usuario puede arreglar.
+ *
+ * Se mantiene pura recibiendo los clientes como parámetro, así el preview puede
+ * mostrar los no encontrados antes de escribir nada.
+ */
+export const resolveClientRefs = ({
+  rows,
+  clients,
+  clientNameField,
+}: {
+  rows: PreparedRow[];
+  clients: ClientRef[];
+  clientNameField: string;
+}): ResolvedRows => {
+  const byName = new Map<string, string>();
+  // Un nombre repetido entre clientes es ambiguo: se saca del índice para que
+  // esas filas caigan como "no encontrado" en vez de elegir una al azar.
+  const ambiguous = new Set<string>();
+
+  for (const client of clients) {
+    const key = normalise(client.name);
+    if (byName.has(key)) ambiguous.add(key);
+    else byName.set(key, client.id);
+  }
+  for (const key of ambiguous) byName.delete(key);
+
+  const resolved: (PreparedRow & { clientId: string })[] = [];
+  const unmatched: { row: number; clientName: string }[] = [];
+  const unmatchedNames = new Set<string>();
+
+  for (const row of rows) {
+    const rawName = String(row.values[clientNameField] ?? '');
+    const clientId = byName.get(normalise(rawName));
+
+    if (!clientId) {
+      unmatched.push({ row: row.row, clientName: rawName });
+      unmatchedNames.add(rawName);
+      continue;
+    }
+
+    resolved.push({ ...row, clientId });
+  }
+
+  return {
+    resolved,
+    unmatched,
+    unmatchedNames: [...unmatchedNames].sort(),
   };
 };
