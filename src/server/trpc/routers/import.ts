@@ -10,6 +10,7 @@ import {
 } from '../../services/import';
 import {
   executeClientImport,
+  executeTransactionImport,
   executeVisitImport,
   rollbackImport,
 } from '../../services/import.service';
@@ -29,7 +30,7 @@ import type { Prisma } from '@prisma/client';
  * es una operación de dueño, no algo que haga un operador.
  */
 
-const EntityEnum = z.enum(['clients', 'visits']);
+const EntityEnum = z.enum(['clients', 'visits', 'transactions']);
 const StrategyEnum = z.enum(['SKIP', 'UPDATE', 'CREATE_NEW']);
 
 const MappingSchema = z.object({
@@ -49,18 +50,26 @@ const MAX_CONTENT = 5_000_000;
  */
 const resolveForEntity = async (
   tenantId: string,
-  entity: 'clients' | 'visits',
+  entity: 'clients' | 'visits' | 'transactions',
   rows: PreparedRow[]
 ) => {
-  const clientNameField = configFor(entity).clientNameField;
-  if (!clientNameField) return null;
+  const config = configFor(entity);
+  if (!config.clientNameField) return null;
 
   const clients = await db.client.findMany({
     where: tenantWhere(tenantId),
     select: { id: true, name: true },
   });
 
-  return resolveClientRefs({ rows, clients, clientNameField });
+  const resolution = resolveClientRefs({
+    rows,
+    clients,
+    clientNameField: config.clientNameField,
+  });
+
+  // Donde el cliente es opcional, no encontrarlo no descarta la fila: entra sin
+  // enganche. Los nombres siguen reportándose para que se puedan corregir.
+  return { ...resolution, clientRequired: config.clientRequired === true };
 };
 
 export const importRouter = router({
@@ -140,19 +149,20 @@ export const importRouter = router({
       // antes de escribir nada.
       const resolution = await resolveForEntity(ctx.tenantId, input.entity, result.validRows);
 
+      // Sin cliente obligatorio, las no resueltas cuentan como válidas.
+      const dropped =
+        resolution && resolution.clientRequired ? resolution.unmatched.length : 0;
+
       return {
         totalRows: result.totalRows,
-        counts: {
-          ...result.counts,
-          valid: resolution ? resolution.resolved.length : result.counts.valid,
-        },
+        counts: { ...result.counts, valid: result.counts.valid - dropped },
         missingRequired: result.missingRequired,
         // Solo los primeros: una planilla con 2000 problemas no tiene por qué
         // viajar entera para mostrar una lista que nadie va a leer completa.
         issues: result.issues.slice(0, 100),
         totalIssues: result.issues.length,
         preview: (resolution?.resolved ?? result.validRows).slice(0, 20),
-        unmatchedCount: resolution?.unmatched.length ?? 0,
+        droppedForMissingClient: dropped,
         unmatchedNames: resolution?.unmatchedNames.slice(0, 50) ?? [],
       };
     }),
@@ -219,6 +229,24 @@ export const importRouter = router({
           // Las filas sin cliente cuentan como no importadas, igual que las que
           // el motor descartó.
           errorRows: result.counts.errors + resolution.unmatched.length,
+        });
+      }
+
+      if (input.entity === 'transactions') {
+        const resolution = await resolveForEntity(
+          ctx.tenantId,
+          'transactions',
+          result.validRows
+        );
+
+        return executeTransactionImport({
+          ...common,
+          // Las que no encontraron cliente entran igual, sin enganche.
+          rows: [
+            ...(resolution?.resolved ?? []),
+            ...(resolution?.unmatched ?? []).map((row) => ({ ...row, clientId: null })),
+          ],
+          errorRows: result.counts.errors,
         });
       }
 

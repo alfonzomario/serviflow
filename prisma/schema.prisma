@@ -345,6 +345,9 @@ model Transaction {
   category        String?  @db.VarChar(100)
   transactionDate DateTime @map("transaction_date") @db.Date
   notes           String?
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId        String?  @map("import_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
   deletedAt       DateTime? @map("deleted_at")
 
@@ -354,6 +357,7 @@ model Transaction {
 
   @@index([tenantId, transactionDate])
   @@index([tenantId, type])
+  @@index([tenantId, importId])
   @@map("transactions")
 }
 

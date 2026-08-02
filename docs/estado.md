@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 115 tests
+npm test             # 123 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -95,8 +95,9 @@ Solicitudes, Pendientes, Finanzas, Notas, Equipo, Historial, Importar, Ajustes,
 Onboarding. **El nav no linkea a nada que no exista**: el Asesor IA sale recién
 cuando tenga página.
 
-**Importador** — el wizard de la Fase 5, funcionando para **clientes y visitas**:
-subir CSV → mapeo automático → preview con avisos → importar → deshacer.
+**Importador** — el wizard de la Fase 5, funcionando para **clientes, visitas y
+movimientos**: subir CSV → mapeo automático → preview con avisos → importar →
+deshacer.
 
 Importar el historial de visitas no es un extra: sin él, un negocio que importa
 200 clientes con abono abre Pendientes y ve 200 items venciendo hoy, porque no
@@ -123,6 +124,16 @@ tratamientos iguales del mismo cliente en fechas distintas no se fusionan.
 > la **identidad** del trabajo, y por eso cambiar la cantidad lo partía en dos.
 > Acá es una **inferencia por única vez** — la planilla no trae ningún id — y el
 > resultado se persiste como una fila que ya no depende del agrupamiento.
+
+**En movimientos el cliente es opcional.** Un gasto de nafta no tiene cliente:
+las filas que no lo resuelven entran igual, sin enganche, y los nombres que no
+se encontraron se listan para poder corregirlos. Es al revés que en visitas,
+donde una fila sin cliente no significa nada. Lo define `clientRequired` en la
+config de cada entidad.
+
+Los movimientos importados **no se enganchan a una visita**. Adivinar cuál pagó
+cada uno por fecha y monto daría falsos positivos, y una transacción atada a la
+visita equivocada ensucia el historial del cliente sin que se note.
 
 **Historial** lee `audit_logs`, que hasta ahora se escribían y no los leía nadie.
 Append-only: no hay create/update/delete. El filtro solo ofrece las acciones que
@@ -156,7 +167,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 73 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 81 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -171,9 +182,8 @@ solo", y "cancelada salda / eliminada vuelve".
 ## Qué sigue, por prioridad
 
 1. **Lo que le falta al importador.**
-   - **Transacciones y notas** no se pueden importar. Transacciones es la que
-     falta para cerrar Finanzas con datos históricos; la resolución de cliente
-     ya está resuelta y es reutilizable (`resolveClientRefs`).
+   - **Notas** no se pueden importar. Es la última entidad de la lista del plan
+     y la más simple: no cuelga de nadie.
    - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
      exportar es un clic en los dos, pero xlsx directo requiere elegir una
      librería — `xlsx`/SheetJS tiene avisos de seguridad conocidos, así que la
@@ -199,7 +209,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (73) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (81) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.
@@ -223,6 +233,11 @@ solo", y "cancelada salda / eliminada vuelve".
 - `Transaction.transactionDate` es `DATE` en Postgres: Prisma lo devuelve a
   medianoche UTC y en UTC-3 se mostraba **el día anterior**. Ver `formatDateOnly`
   y `toDateOnlyInputValue` en `lib/format.ts`.
+- El mismo problema existe **al escribir**, y es más traicionero porque no se ve
+  en UTC-3. `parseImportDate` devuelve medianoche *local* y Prisma guarda la
+  parte UTC: en un servidor con offset positivo el 15/01 se guardaría 14/01. Por
+  eso el importador pasa todo por `toDateOnly` antes de escribir en una columna
+  `DATE`. Cualquier código nuevo que escriba ahí tiene que hacer lo mismo.
 - El motor de permisos leía `permissions` como array de strings cuando el schema
   guarda un objeto: **ADMIN nunca podía pasar ningún chequeo**.
 - `addCadence` con meses: 31 de enero + 1 mes tiene que caer el 28 de febrero, no

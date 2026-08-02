@@ -40,9 +40,23 @@ type Mapping = {
 }
 
 type Strategy = "SKIP" | "UPDATE" | "CREATE_NEW"
-type Entity = "clients" | "visits"
+type Entity = "clients" | "visits" | "transactions"
 
 const IGNORE = "__ignore__"
+
+/** [singular, plural] por entidad, para los textos que cuentan filas. */
+const NOUNS: Record<Entity, [string, string]> = {
+  clients: ["cliente", "clientes"],
+  visits: ["visita", "visitas"],
+  transactions: ["movimiento", "movimientos"],
+}
+
+/** A dónde mandar al usuario cuando termina. */
+const DESTINATIONS: Record<Entity, { href: string; label: string }> = {
+  clients: { href: "/clients", label: "Ver los clientes" },
+  visits: { href: "/agenda", label: "Ver la agenda" },
+  transactions: { href: "/finance", label: "Ver finanzas" },
+}
 
 const STRATEGIES: { value: Strategy; label: string; hint: string }[] = [
   {
@@ -410,26 +424,37 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           </p>
         )}
 
-        {preview.data.unmatchedCount > 0 && (
+        {preview.data.unmatchedNames.length > 0 && (
           <Card className="border-amber-500/40 p-4">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <div className="min-w-0 space-y-2">
-                <p className="text-sm">
-                  <strong>{preview.data.unmatchedCount}</strong>{" "}
-                  {preview.data.unmatchedCount === 1 ? "fila queda" : "filas quedan"} afuera:
-                  su cliente no existe. Buscamos por nombre exacto — preferimos no importarlas
-                  antes que colgarlas del cliente equivocado, que arruinaría Pendientes sin
-                  que se note.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Importá primero esos clientes, o corregí el nombre en la planilla para que
-                  coincida.
-                </p>
+                {preview.data.droppedForMissingClient > 0 ? (
+                  <>
+                    <p className="text-sm">
+                      <strong>{preview.data.droppedForMissingClient}</strong>{" "}
+                      {preview.data.droppedForMissingClient === 1
+                        ? "fila queda"
+                        : "filas quedan"}{" "}
+                      afuera: su cliente no existe. Buscamos por nombre exacto — preferimos
+                      no importarlas antes que colgarlas del cliente equivocado, que
+                      arruinaría Pendientes sin que se note.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Importá primero esos clientes, o corregí el nombre en la planilla para
+                      que coincida.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm">
+                    Estos nombres no coinciden con ningún cliente. Los movimientos{" "}
+                    <strong>se importan igual</strong>, sin quedar asociados a nadie.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-1">
                   {preview.data.unmatchedNames.map((name) => (
                     <Badge key={name} variant="outline" className="font-normal">
-                      {name || "(vacío)"}
+                      {name}
                     </Badge>
                   ))}
                 </div>
@@ -543,13 +568,7 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             {execute.isPending
               ? "Importando…"
               : `Importar ${counts.valid} ${
-                  entity === "visits"
-                    ? counts.valid === 1
-                      ? "visita"
-                      : "visitas"
-                    : counts.valid === 1
-                      ? "cliente"
-                      : "clientes"
+                  NOUNS[entity][counts.valid === 1 ? 0 : 1]
                 }`}
           </Button>
         </div>
@@ -602,12 +621,8 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           <Button variant="outline" onClick={reset}>
             Importar otro archivo
           </Button>
-          <Button
-            onClick={() => {
-              window.location.href = entity === "visits" ? "/agenda" : "/clients"
-            }}
-          >
-            {entity === "visits" ? "Ver la agenda" : "Ver los clientes"}
+          <Button onClick={() => (window.location.href = DESTINATIONS[entity].href)}>
+            {DESTINATIONS[entity].label}
           </Button>
         </div>
 

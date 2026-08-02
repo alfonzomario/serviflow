@@ -1,7 +1,7 @@
 import { db } from '../db';
 import { tenantWhere, tenantOnly } from '../lib/tenant-context';
 import { recordAudit } from './audit.service';
-import { groupIntoJobs, type ResolvedRow } from './import';
+import { groupIntoJobs, toDateOnly, type ResolvedRow } from './import';
 import type { PreparedRow } from './import';
 import type { Prisma, VisitStatus } from '@prisma/client';
 
@@ -365,6 +365,155 @@ export const executeVisitImport = async ({
 };
 
 /**
+ * Escribe movimientos de caja históricos.
+ *
+ * El cliente es opcional acá: las filas que no lo resolvieron entran igual, sin
+ * enganche. Perder un gasto de nafta porque no tiene cliente sería absurdo.
+ *
+ * Tampoco se enganchan a una visita. Adivinar qué visita pagó cada movimiento
+ * por fecha y monto daría falsos positivos, y una transacción atada a la visita
+ * equivocada ensucia el historial del cliente sin que se note.
+ */
+export const executeTransactionImport = async ({
+  tenantId,
+  userId,
+  rows,
+  strategy,
+  fileName,
+  columnMapping,
+  totalRows,
+  errorRows,
+}: {
+  tenantId: string;
+  userId: string;
+  /** `clientId` en null es una fila sin cliente, que es válida. */
+  rows: (PreparedRow & { clientId: string | null })[];
+  strategy: DuplicateStrategy;
+  fileName: string | null;
+  columnMapping: Prisma.InputJsonValue;
+  totalRows: number;
+  errorRows: number;
+}): Promise<ImportOutcome> => {
+  const dates = rows
+    .map((row) => row.values.transactionDate as Date | undefined)
+    .filter((date): date is Date => date instanceof Date);
+
+  // Solo se traen los movimientos del rango del archivo: comparar contra toda
+  // la caja histórica del tenant no aporta y crece sin techo.
+  const existing =
+    dates.length > 0
+      ? await db.transaction.findMany({
+          where: {
+            ...tenantWhere(tenantId),
+            transactionDate: {
+              gte: toDateOnly(new Date(Math.min(...dates.map((d) => d.getTime())))),
+              lte: toDateOnly(new Date(Math.max(...dates.map((d) => d.getTime())))),
+            },
+          },
+          select: { transactionDate: true, amount: true, category: true, clientId: true },
+        })
+      : [];
+
+  const keyOf = (
+    date: Date,
+    amount: number,
+    category: string | null,
+    clientId: string | null
+  ) =>
+    `${date.toISOString().slice(0, 10)}|${amount.toFixed(2)}|${(category ?? '').toLowerCase()}|${
+      clientId ?? ''
+    }`;
+
+  const existingKeys = new Set(
+    existing.map((tx) =>
+      keyOf(tx.transactionDate, Number(tx.amount), tx.category, tx.clientId)
+    )
+  );
+
+  const outcome = await db.$transaction(async (tx) => {
+    const importId = crypto.randomUUID();
+    let imported = 0;
+    let skipped = 0;
+    const errors: { row: number; message: string }[] = [];
+    const seen = new Set(existingKeys);
+
+    for (const row of rows) {
+      const rawDate = row.values.transactionDate as Date | undefined;
+      const amount = row.values.amount as number | undefined;
+      if (!rawDate || amount === undefined) continue;
+
+      const transactionDate = toDateOnly(rawDate);
+      const category = (row.values.category as string | undefined) ?? null;
+      const key = keyOf(transactionDate, amount, category, row.clientId);
+
+      if (seen.has(key) && strategy !== 'CREATE_NEW') {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await tx.transaction.create({
+          data: {
+            tenantId,
+            importId,
+            clientId: row.clientId,
+            type: (row.values.type as 'INCOME' | 'EXPENSE' | undefined) ?? 'INCOME',
+            amount,
+            category,
+            transactionDate,
+            notes: (row.values.notes as string | undefined) ?? null,
+          },
+        });
+        seen.add(key);
+        imported++;
+      } catch (error) {
+        errors.push({
+          row: row.row,
+          message: error instanceof Error ? error.message : 'Error desconocido',
+        });
+      }
+    }
+
+    await tx.importHistory.create({
+      data: {
+        id: importId,
+        tenantId,
+        userId,
+        entityType: 'transactions',
+        fileName,
+        fileType: 'csv',
+        totalRows,
+        importedRows: imported,
+        skippedRows: skipped,
+        errorRows: errorRows + errors.length,
+        errors: errors as unknown as Prisma.InputJsonValue,
+        columnMapping,
+        duplicateStrategy: strategy,
+        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+  });
+
+  await recordAudit({
+    tenantId,
+    userId,
+    action: 'IMPORT',
+    entityType: 'transaction',
+    entityId: outcome.importId,
+    changes: {
+      importados: outcome.imported,
+      omitidos: outcome.skipped,
+      fallidos: outcome.failed,
+    },
+  });
+
+  return outcome;
+};
+
+/**
  * Deshace una importación: borra lógicamente solo las filas que creó.
  *
  * Deliberadamente **no** revierte los `UPDATE`: no guardamos el estado previo,
@@ -396,6 +545,8 @@ export const rollbackImport = async ({
       // Y los trabajos que se hayan inferido en ese mismo lote: sin sus visitas
       // quedarían pidiendo aplicaciones de un tratamiento que ya no existe.
       await tx.job.updateMany({ where, data });
+    } else if (record.entityType === 'transactions') {
+      deleted = await tx.transaction.updateMany({ where, data });
     } else {
       deleted = await tx.client.updateMany({ where, data });
     }
@@ -412,7 +563,12 @@ export const rollbackImport = async ({
     tenantId,
     userId,
     action: 'IMPORT',
-    entityType: record.entityType === 'visits' ? 'visit' : 'client',
+    entityType:
+      record.entityType === 'visits'
+        ? 'visit'
+        : record.entityType === 'transactions'
+          ? 'transaction'
+          : 'client',
     entityId: importId,
     changes: { deshecha: true, eliminados: result.deleted },
   });

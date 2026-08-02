@@ -455,6 +455,40 @@ infirió; si no quedaban pidiendo aplicaciones de un tratamiento sin visitas.
 Verificado contra la base: 7 filas → 3 trabajos + 1 visita suelta, y Pendientes
 pasó a pedir "aplicación 3 de 3 — Ana Fernández · Termitas".
 
+### Importar movimientos de caja
+
+Tercera entidad del importador. Cierra Finanzas con datos históricos, que hasta
+ahora arrancaba vacía aunque se importaran años de visitas cobradas — las visitas
+importadas deliberadamente no generan transacciones.
+
+**El cliente es opcional acá, al revés que en visitas.** Un gasto de nafta no
+tiene cliente: las filas que no lo resuelven entran igual, sin enganche. Los
+nombres que sí venían y no se encontraron se listan aparte; una celda vacía no
+se reporta, porque no es un nombre que falló sino una fila que no declara
+cliente. Lo define `clientRequired` en la config de cada entidad, así que
+`resolveClientRefs` sirvió tal cual — solo hubo que devolver la fila entera en
+`unmatched` en vez de solo el nombre.
+
+**Tampoco se enganchan a una visita.** Adivinar cuál pagó cada movimiento por
+fecha y monto daría falsos positivos, y una transacción atada a la visita
+equivocada ensucia el historial del cliente sin que se note.
+
+#### Un bug de fechas que no se ve en UTC-3
+
+`transactionDate` es `DATE` en Postgres. Ya teníamos documentado que al **leer**
+Prisma devuelve medianoche UTC y en UTC-3 se mostraba el día anterior. Al
+**escribir** pasa lo simétrico y es peor, porque no se manifiesta acá:
+`parseImportDate` devuelve medianoche *local*, y Prisma guarda la parte UTC. En
+un servidor con offset positivo el 15/01 se guardaría como 14/01.
+
+Por eso el importador pasa todo por `toDateOnly` antes de escribir en una
+columna `DATE`. Hay tests que lo fijan, y quedó anotado en estado.md para
+cualquier código nuevo que escriba ahí.
+
+Verificado contra la base: 8 filas → 7 movimientos (1 duplicado omitido), fechas
+exactas leídas por partes UTC, "8.400,50" como 8400.5, y la fila con cliente
+inexistente importada igual sin enganche.
+
 ## Next Steps
 - [ ] Use `labelRecurringAgreement` / `labelMultiVisitJob` in the remaining
       screens — the hook exists and Pendientes, the visit form and the jobs

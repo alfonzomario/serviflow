@@ -9,6 +9,7 @@ import {
   parseNumber,
   groupIntoJobs,
   resolveClientRefs,
+  toDateOnly,
   validateRows,
   type ColumnMapping,
 } from './import';
@@ -450,7 +451,14 @@ describe('resolveClientRefs', () => {
     const result = resolve([rowFor('Ferretería Central')])
 
     expect(result.resolved).toHaveLength(0)
-    expect(result.unmatched).toEqual([{ row: 1, clientName: 'Ferretería Central' }])
+    // Se devuelve la fila entera, no solo el nombre: donde el cliente es
+    // opcional, estas filas igual se importan sin enganche.
+    expect(result.unmatched).toHaveLength(1)
+    expect(result.unmatched[0]).toMatchObject({
+      row: 1,
+      clientName: 'Ferretería Central',
+      values: { clientName: 'Ferretería Central' },
+    })
     expect(result.unmatchedNames).toEqual(['Ferretería Central'])
   })
 
@@ -614,5 +622,96 @@ describe('groupIntoJobs', () => {
     expect(jobs).toHaveLength(1)
     expect(jobs[0].rows).toHaveLength(2)
     expect(loose.map((row) => row.row)).toEqual([2])
+  })
+})
+
+describe('toDateOnly', () => {
+  it('fija la fecha a medianoche UTC conservando el día', () => {
+    // parseImportDate devuelve medianoche local; Prisma escribe la parte UTC.
+    // Sin esto, en un servidor con offset positivo el 15/01 se guardaría 14/01.
+    const parsed = parseImportDate('15/01/2026')!
+    const stored = toDateOnly(parsed)
+
+    expect(stored.toISOString()).toBe('2026-01-15T00:00:00.000Z')
+    expect(stored.getUTCDate()).toBe(15)
+    expect(stored.getUTCMonth()).toBe(0)
+  })
+
+  it('no corre el día en ningún caso', () => {
+    for (const raw of ['01/01/2026', '31/12/2026', '29/02/2024']) {
+      const stored = toDateOnly(parseImportDate(raw)!)
+      const [d, m, y] = raw.split('/').map(Number)
+      expect(stored.toISOString().slice(0, 10)).toBe(
+        `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      )
+    }
+  })
+})
+
+describe('movimientos', () => {
+  const build = (csv: string) => {
+    const { headers, rows } = parseDelimited(csv)
+    return validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'transactions'),
+      entity: 'transactions',
+    })
+  }
+
+  it('reconoce los encabezados de una planilla de caja', () => {
+    const mappings = autoMapColumns(
+      ['Fecha', 'Importe', 'Tipo', 'Categoría', 'Cliente'],
+      'transactions'
+    )
+
+    expect(mapOf(mappings)).toEqual({
+      Fecha: 'transactionDate',
+      Importe: 'amount',
+      Tipo: 'type',
+      Categoría: 'category',
+      Cliente: 'clientName',
+    })
+  })
+
+  it('exige fecha e importe', () => {
+    expect(build('Categoría\nNafta').missingRequired).toEqual(
+      expect.arrayContaining(['Fecha', 'Importe'])
+    )
+  })
+
+  it('distingue ingreso de gasto como los escribe cada uno', () => {
+    const result = build(
+      'Fecha,Importe,Tipo\n01/03/2026,1000,cobro\n02/03/2026,500,egreso'
+    )
+
+    expect(result.validRows[0].values.type).toBe('INCOME')
+    expect(result.validRows[1].values.type).toBe('EXPENSE')
+  })
+
+  it('entiende importes en formato es-AR', () => {
+    const result = build('Fecha,Importe\n01/03/2026,"$ 1.234,56"')
+
+    expect(result.validRows[0].values.amount).toBe(1234.56)
+  })
+
+  it('no descarta la fila sin cliente', () => {
+    // Un gasto de nafta no tiene cliente y es perfectamente válido.
+    const result = build('Fecha,Importe,Categoría\n01/03/2026,5000,Nafta')
+
+    expect(result.counts.errors).toBe(0)
+    expect(result.validRows).toHaveLength(1)
+  })
+
+  it('deduplica por fecha + importe + categoría + cliente', () => {
+    const repetido = build(
+      'Fecha,Importe,Categoría\n01/03/2026,1000,Visita\n01/03/2026,1000,Visita'
+    )
+    expect(repetido.issues).toHaveLength(1)
+
+    // Mismo importe el mismo día pero otra categoría son dos movimientos.
+    const distintos = build(
+      'Fecha,Importe,Categoría\n01/03/2026,1000,Visita\n01/03/2026,1000,Nafta'
+    )
+    expect(distintos.issues).toHaveLength(0)
   })
 })

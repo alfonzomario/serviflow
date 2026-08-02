@@ -38,7 +38,7 @@ export type ColumnSignature = {
   hint?: string;
 };
 
-export type ImportEntity = 'clients' | 'visits';
+export type ImportEntity = 'clients' | 'visits' | 'transactions';
 
 export type EntityConfig = {
   label: string;
@@ -54,6 +54,11 @@ export type EntityConfig = {
    * su nombre. La resolución contra los clientes existentes se hace aparte.
    */
   clientNameField?: string;
+  /**
+   * Si una fila sin cliente resuelto se descarta o entra igual. Una visita sin
+   * cliente no significa nada; un gasto de nafta sin cliente es lo normal.
+   */
+  clientRequired?: boolean;
 };
 
 const CLIENT_SIGNATURES: ColumnSignature[] = [
@@ -285,6 +290,58 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
   },
 ];
 
+/**
+ * Movimientos de caja. El cliente es **opcional**: los ingresos suelen tenerlo,
+ * los gastos casi nunca. Una fila sin cliente reconocido entra igual, sin
+ * enganche, en vez de perderse.
+ */
+const TRANSACTION_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'transactionDate',
+    label: 'Fecha',
+    aliases: ['fecha', 'date', 'dia', 'día', 'fecha de pago', 'fecha movimiento'],
+    type: 'date',
+    required: true,
+  },
+  {
+    field: 'amount',
+    label: 'Importe',
+    aliases: ['importe', 'monto', 'amount', 'precio', 'valor', 'total', 'suma'],
+    type: 'currency',
+    required: true,
+  },
+  {
+    field: 'type',
+    label: 'Ingreso o gasto',
+    aliases: ['tipo', 'type', 'concepto', 'movimiento', 'ingreso o gasto', 'signo'],
+    type: 'enum',
+    enumValues: {
+      INCOME: ['ingreso', 'income', 'cobro', 'entrada', 'venta', 'haber', 'credito', 'crédito'],
+      EXPENSE: ['gasto', 'expense', 'egreso', 'salida', 'compra', 'debe', 'debito', 'débito'],
+    },
+    hint: 'Si no se mapea, todo entra como ingreso.',
+  },
+  {
+    field: 'category',
+    label: 'Categoría',
+    aliases: ['categoria', 'categoría', 'category', 'rubro', 'concepto', 'detalle'],
+    type: 'string',
+  },
+  {
+    field: 'clientName',
+    label: 'Cliente',
+    aliases: ['cliente', 'client', 'razon social', 'razón social', 'a nombre de'],
+    type: 'string',
+    hint: 'Opcional. Se busca por nombre; si no aparece, el movimiento entra sin cliente.',
+  },
+  {
+    field: 'notes',
+    label: 'Notas',
+    aliases: ['notas', 'notes', 'observaciones', 'comentarios', 'obs'],
+    type: 'string',
+  },
+];
+
 export const ENTITIES: Record<ImportEntity, EntityConfig> = {
   clients: {
     label: 'Clientes',
@@ -299,12 +356,23 @@ export const ENTITIES: Record<ImportEntity, EntityConfig> = {
     fields: VISIT_SIGNATURES,
     dedupeFields: ['clientName', 'scheduledAt', 'serviceType'],
     clientNameField: 'clientName',
+    clientRequired: true,
+  },
+  transactions: {
+    label: 'Movimientos',
+    description:
+      'Ingresos y gastos históricos. El cliente es opcional: los gastos normalmente no tienen.',
+    fields: TRANSACTION_SIGNATURES,
+    dedupeFields: ['transactionDate', 'amount', 'category', 'clientName'],
+    clientNameField: 'clientName',
+    clientRequired: false,
   },
 };
 
 export const ENTITY_LABELS: Record<ImportEntity, string> = {
   clients: ENTITIES.clients.label,
   visits: ENTITIES.visits.label,
+  transactions: ENTITIES.transactions.label,
 };
 
 export const configFor = (entity: ImportEntity): EntityConfig => ENTITIES[entity];

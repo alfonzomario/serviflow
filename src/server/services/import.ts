@@ -275,6 +275,19 @@ export const parseImportDate = (raw: string): Date | null => {
   return null;
 };
 
+/**
+ * Fija una fecha a medianoche UTC conservando el día del calendario.
+ *
+ * Para las columnas `DATE` de Postgres. `parseImportDate` devuelve medianoche
+ * *local*, y Prisma escribe la parte UTC: en un servidor con offset positivo,
+ * el 15/01 local es el 14/01 en UTC y se guardaría el día anterior. Es la misma
+ * familia del bug que ya nos mordió al leer `Transaction.transactionDate` — solo
+ * que del lado de la escritura, y no se nota en un servidor en UTC-3, que es
+ * justo donde lo probamos.
+ */
+export const toDateOnly = (date: Date): Date =>
+  new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
 /** Deja solo dígitos y el `+` inicial. Números demasiado cortos no son teléfonos. */
 export const normalisePhone = (raw: string): string | null => {
   const trimmed = raw.trim();
@@ -553,9 +566,13 @@ export type ClientRef = { id: string; name: string };
 
 export type ResolvedRows = {
   /** Filas que encontraron su cliente, con el `clientId` ya puesto. */
-  resolved: (PreparedRow & { clientId: string })[];
-  /** Filas cuyo nombre de cliente no existe. No se importan. */
-  unmatched: { row: number; clientName: string }[];
+  resolved: ResolvedRow[];
+  /**
+   * Filas cuyo nombre de cliente no existe. Se devuelve la fila entera, no solo
+   * el nombre: en las entidades donde el cliente es opcional —un gasto de nafta
+   * no tiene cliente— estas filas igual se importan, sin enganche.
+   */
+  unmatched: (PreparedRow & { clientName: string })[];
   /** Los nombres distintos que no se encontraron, para mostrarlos juntos. */
   unmatchedNames: string[];
 };
@@ -693,8 +710,8 @@ export const resolveClientRefs = ({
   }
   for (const key of ambiguous) byName.delete(key);
 
-  const resolved: (PreparedRow & { clientId: string })[] = [];
-  const unmatched: { row: number; clientName: string }[] = [];
+  const resolved: ResolvedRow[] = [];
+  const unmatched: (PreparedRow & { clientName: string })[] = [];
   const unmatchedNames = new Set<string>();
 
   for (const row of rows) {
@@ -702,8 +719,10 @@ export const resolveClientRefs = ({
     const clientId = byName.get(normalise(rawName));
 
     if (!clientId) {
-      unmatched.push({ row: row.row, clientName: rawName });
-      unmatchedNames.add(rawName);
+      unmatched.push({ ...row, clientName: rawName });
+      // Una celda vacía no es un nombre que no encontramos: es una fila que no
+      // declara cliente, que en gastos es lo normal. No se reporta.
+      if (rawName.trim()) unmatchedNames.add(rawName);
       continue;
     }
 
