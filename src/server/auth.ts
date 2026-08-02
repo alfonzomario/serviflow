@@ -1,4 +1,6 @@
 import NextAuth from 'next-auth';
+// Imported so the `declare module 'next-auth/jwt'` augmentation below resolves.
+import type { JWT } from 'next-auth/jwt';
 import { authConfig } from './auth.config';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -61,7 +63,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig.callbacks,
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id = user.id;
+        token.id = user.id as string;
         token.tenantId = (user as any).tenantId;
         token.role = (user as any).role;
         token.permissions = (user as any).permissions;
@@ -99,7 +101,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module '@auth/core/jwt' {
+declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
     tenantId: string;

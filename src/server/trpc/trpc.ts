@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import { Context } from './context';
-import { hasRole } from '../lib/permissions';
+import { hasRole, checkPermission, type Module, type Action } from '../lib/permissions';
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
@@ -64,3 +64,19 @@ const enforceOwnerOrSuperAdmin = t.middleware(({ ctx, next }) => {
 });
 
 export const ownerProcedure = t.procedure.use(enforceOwnerOrSuperAdmin);
+
+/**
+ * Tenant-scoped procedure that also enforces one cell of the permission matrix.
+ *
+ *   permissionProcedure('finance', 'write').mutation(...)
+ */
+export const permissionProcedure = (module: Module, action: Action) =>
+  tenantProcedure.use(({ ctx, next }) => {
+    if (!checkPermission(ctx.session, module, action)) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: `Requires ${module}.${action} permission`,
+      });
+    }
+    return next({ ctx });
+  });

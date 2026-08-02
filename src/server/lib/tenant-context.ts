@@ -1,8 +1,16 @@
-import { PrismaClient } from '@prisma/client';
+/**
+ * Tenant scoping helpers.
+ *
+ * Every tenant-scoped query must spread one of these into its `where` clause.
+ * A global Prisma extension was tried first but `$allModels` cannot express
+ * "only the models that have a deleted_at column" — models like
+ * ServiceRequest, User and TenantSettings are hard-deleted — so scoping stays
+ * explicit at the call site.
+ */
 
 /**
- * Returns a base where clause for tenant-scoped queries
- * that also excludes soft-deleted records.
+ * Base where clause for models that support soft deletes:
+ * Client, Visit, Job, Transaction, Note.
  */
 export const tenantWhere = (tenantId: string) => ({
   tenantId,
@@ -10,56 +18,9 @@ export const tenantWhere = (tenantId: string) => ({
 });
 
 /**
- * Extension for Prisma to automatically scope queries to a specific tenant.
- * Note: Prisma Extensions are the modern way to handle this.
+ * Base where clause for models without a `deletedAt` column:
+ * ServiceRequest, User, TenantSettings, AuditLog, ImportHistory.
  */
-export const withTenantScope = (prisma: PrismaClient, tenantId: string) => {
-  return prisma.$extends({
-    query: {
-      $allModels: {
-        async findMany({ args, query }) {
-          args.where = { ...args.where, tenantId, deletedAt: null };
-          return query(args);
-        },
-        async findFirst({ args, query }) {
-          args.where = { ...args.where, tenantId, deletedAt: null };
-          return query(args);
-        },
-        async findUnique({ args, query }) {
-          // Caution: findUnique often relies on unique constraints.
-          // Soft-deletes + tenant scoping usually requires findFirst instead for unique constraints
-          // unless the unique constraint includes tenantId and deletedAt.
-          return query(args);
-        },
-        async count({ args, query }) {
-          args.where = { ...args.where, tenantId, deletedAt: null };
-          return query(args);
-        },
-        async update({ args, query }) {
-          args.where = { ...args.where, tenantId, deletedAt: null };
-          return query(args);
-        },
-        async updateMany({ args, query }) {
-          args.where = { ...args.where, tenantId, deletedAt: null };
-          return query(args);
-        },
-        async delete({ args, query }) {
-          // Soft delete conversion
-          const { where, ...rest } = args;
-          return (prisma as any)[this.$name].update({
-            where: { ...where, tenantId },
-            data: { deletedAt: new Date() },
-            ...rest,
-          });
-        },
-        async deleteMany({ args, query }) {
-          args.where = { ...args.where, tenantId };
-          return (prisma as any)[this.$name].updateMany({
-            where: args.where,
-            data: { deletedAt: new Date() },
-          });
-        },
-      },
-    },
-  });
-};
+export const tenantOnly = (tenantId: string) => ({
+  tenantId,
+});

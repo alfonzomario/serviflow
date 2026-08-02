@@ -1,10 +1,11 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import { NextIntlClientProvider } from "next-intl"
+import { getLocale, getMessages } from "next-intl/server"
+import { SessionProvider } from "next-auth/react"
+import { Toaster } from "sonner"
+import { TRPCProvider } from "@/lib/trpc"
 import "./globals.css"
-// Placeholders for providers since we don't have them defined yet
-// import { NextIntlClientProvider } from 'next-intl'
-// import { TRPCProvider } from '@/lib/trpc/Provider'
-// import { SessionProvider } from 'next-auth/react'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -13,21 +14,25 @@ export const metadata: Metadata = {
   description: "Plataforma de gestión para negocios de servicios a domicilio",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const locale = await getLocale()
+  const messages = await getMessages()
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className={inter.className}>
-        {/* <SessionProvider> */}
-          {/* <TRPCProvider> */}
-            {/* <NextIntlClientProvider messages={messages} locale={locale}> */}
+        <SessionProvider>
+          <TRPCProvider>
+            <NextIntlClientProvider locale={locale} messages={messages}>
               {children}
-            {/* </NextIntlClientProvider> */}
-          {/* </TRPCProvider> */}
-        {/* </SessionProvider> */}
+              <Toaster richColors position="top-right" />
+            </NextIntlClientProvider>
+          </TRPCProvider>
+        </SessionProvider>
       </body>
     </html>
   )

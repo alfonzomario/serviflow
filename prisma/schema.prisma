@@ -35,6 +35,12 @@ enum VisitStatus {
   CANCELLED
   SKIPPED
 }
+// A CONTRACT client can also receive one-off work, so the monthly commitment
+// lives on the visit, not only on the client.
+enum VisitType {
+  CONTRACT // "abono": fulfils the client's monthly contract
+  SPECIAL  // "especial": one-off job, may span several applications
+}
 enum PaymentStatus {
   PENDING
   PAID
@@ -53,6 +59,20 @@ enum RequestStatus {
   PENDING
   SCHEDULED
   CLOSED
+}
+// How often a recurring agreement comes due. Expressed as unit + interval
+// rather than days so "cada 1 mes" tracks the calendar instead of drifting.
+enum RecurrenceUnit {
+  DAY
+  WEEK
+  MONTH
+}
+// Where the next due date is counted from. CALENDAR treats the commitment as
+// belonging to a period ("el abono de agosto"); LAST_VISIT runs the clock from
+// whenever the last visit happened.
+enum RecurrenceAnchor {
+  CALENDAR
+  LAST_VISIT
 }
 enum ImportStatus {
   PROCESSING
@@ -78,6 +98,7 @@ model Tenant {
   users      User[]
   clients    Client[]
   visits     Visit[]
+  jobs       Job[]
   requests   ServiceRequest[]
   transactions Transaction[]
   notes      Note[]
@@ -89,9 +110,32 @@ model Tenant {
   @@map("tenants")
 }
 
+model Plan {
+  id              String  @id @default(uuid()) @db.Uuid
+  name            String  @unique @db.VarChar(50) // 'free', 'pro', 'business'
+  displayName     String  @map("display_name") @db.VarChar(100)
+  maxUsers        Int     @default(2) @map("max_users")
+  maxClients      Int     @default(50) @map("max_clients")
+  maxVisitsMonth  Int     @default(100) @map("max_visits_month")
+  aiEnabled       Boolean @default(false) @map("ai_enabled")
+  calendarSync    Boolean @default(false) @map("calendar_sync")
+  clientPortal    Boolean @default(false) @map("client_portal")
+  customBranding  Boolean @default(false) @map("custom_branding")
+  apiAccess       Boolean @default(false) @map("api_access")
+  historyYears    Int     @default(1) @map("history_years")
+  monthlyPriceArs Decimal @default(0) @map("monthly_price_ars") @db.Decimal(10,2)
+  annualPriceArs  Decimal @default(0) @map("annual_price_ars") @db.Decimal(10,2)
+  sortOrder       Int     @default(0) @map("sort_order")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
 model Subscription {
   id                  String   @id @default(uuid()) @db.Uuid
   tenantId            String   @unique @map("tenant_id") @db.Uuid
+  planId              String?  @map("plan_id") @db.Uuid
   status              String   @default("active") @db.VarChar(20)
   planName            String   @default("pro") @map("plan_name") @db.VarChar(50)
   monthlyPrice        Decimal  @default(0) @map("monthly_price") @db.Decimal(10,2)
@@ -102,6 +146,7 @@ model Subscription {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan?  @relation(fields: [planId], references: [id])
 
   @@map("subscriptions")
 }
@@ -148,8 +193,15 @@ model Client {
   serviceTypes      String[] @map("service_types")
   preferredDays     String[] @map("preferred_days")
   preferredSlots    String[] @map("preferred_slots")
+  // Null inherits the business default from TenantSettings.
+  recurrenceUnit    RecurrenceUnit? @map("recurrence_unit")
+  recurrenceInterval Int?    @map("recurrence_interval")
+  minDaysBetweenApplications Int? @map("min_days_between_applications")
   notes             String?
   metadata          Json     @default("{}")
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId          String?  @map("import_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
@@ -157,12 +209,56 @@ model Client {
   tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users        User[] @relation("UserClient")
   visits       Visit[]
+  jobs         Job[]
   requests     ServiceRequest[]
   transactions Transaction[]
 
   @@index([tenantId, status])
   @@index([tenantId, relationshipType])
+  @@index([tenantId, importId])
   @@map("clients")
+}
+
+/// A piece of work that takes more than one visit — "el tratamiento de 3
+/// aplicaciones". One row per job; its visits point back at it through
+/// `Visit.jobId`.
+///
+/// Before this model existed a job was *inferred* from every visit by grouping
+/// on `clientId | totalApplications | requestId`, a shape inherited from the
+/// Apps Script. That grouping breaks the moment the number of applications
+/// changes mid-job: the already-scheduled visits keep the old total and split
+/// off into a second phantom job. It also made a job impossible to express
+/// before its first visit existed.
+///
+/// `totalApplications` is loaded by hand. Deliberately not derived from the
+/// service type: the business said explicitly it does not want recipes per
+/// service.
+model Job {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  clientId          String   @map("client_id") @db.Uuid
+  requestId         String?  @map("request_id") @db.Uuid
+  serviceType       String?  @map("service_type") @db.VarChar(100)
+  /// Whether the job fulfils the recurring agreement or is one-off work. The
+  /// visits carry their own copy, which is what the pendientes rules read.
+  visitType         VisitType @default(SPECIAL) @map("visit_type")
+  totalApplications Int      @map("total_applications")
+  /// Set when the job is closed early: the remaining applications stop being
+  /// surfaced as pending. Replaces the old per-visit `followUpClosed`.
+  closedAt          DateTime? @map("closed_at")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client  Client @relation(fields: [clientId], references: [id])
+  request ServiceRequest? @relation(fields: [requestId], references: [id])
+  visits  Visit[]
+
+  @@index([tenantId, clientId])
+  @@index([tenantId, closedAt])
+  @@map("jobs")
 }
 
 model Visit {
@@ -171,16 +267,23 @@ model Visit {
   clientId          String   @map("client_id") @db.Uuid
   assignedUserId    String?  @map("assigned_user_id") @db.Uuid
   requestId         String?  @map("request_id") @db.Uuid
-  scheduledAt       DateTime @map("scheduled_at")
+  /// Set when this visit is one application of a multi-visit job. Null means a
+  /// standalone visit.
+  jobId             String?  @map("job_id") @db.Uuid
+  // Nullable: a visit can exist before it has a slot. Those are exactly the
+  // rows that show up under Pendientes as "falta agendar".
+  scheduledAt       DateTime? @map("scheduled_at")
   durationMinutes   Int      @default(45) @map("duration_minutes")
   serviceType       String?  @map("service_type") @db.VarChar(100)
+  visitType         VisitType @default(SPECIAL) @map("visit_type")
   status            VisitStatus @default(PENDING_CONFIRM)
   paymentStatus     PaymentStatus @default(PENDING) @map("payment_status")
   price             Decimal  @default(0) @db.Decimal(10,2)
   priceWaived       Boolean  @default(false) @map("price_waived")
   serviceDetails    String[] @map("service_details")
+  /// This visit's position inside its job. Only meaningful with `jobId` set;
+  /// the job holds how many there are in total.
   applicationNumber Int?     @map("application_number")
-  totalApplications Int?     @map("total_applications")
   notes             String?
   calendarEventId   String?  @map("calendar_event_id") @db.VarChar(255)
   completedAt       DateTime? @map("completed_at")
@@ -192,10 +295,12 @@ model Visit {
   client       Client @relation(fields: [clientId], references: [id])
   assignedUser User?  @relation("AssignedVisits", fields: [assignedUserId], references: [id])
   request      ServiceRequest? @relation(fields: [requestId], references: [id])
+  job          Job?   @relation(fields: [jobId], references: [id])
   transactions Transaction[]
 
   @@index([tenantId, status, scheduledAt])
   @@index([tenantId, clientId])
+  @@index([tenantId, jobId])
   @@index([tenantId, assignedUserId])
   @@index([tenantId, scheduledAt])
   @@map("visits")
@@ -216,6 +321,7 @@ model ServiceRequest {
   tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   client  Client @relation(fields: [clientId], references: [id])
   visits  Visit[]
+  jobs    Job[]
 
   @@index([tenantId, status])
   @@map("service_requests")
@@ -275,7 +381,28 @@ model TenantSettings {
   adminEmail              String? @map("admin_email")
   workingHoursStart       String  @default("07:00") @map("working_hours_start") @db.VarChar(5)
   workingHoursEnd         String  @default("15:00") @map("working_hours_end") @db.VarChar(5)
-  visitIntervalDays       Int     @default(15) @map("visit_interval_days")
+
+  // Business-wide defaults, overridable per client.
+  // How often a recurring agreement comes due.
+  recurrenceUnit          RecurrenceUnit @default(MONTH) @map("recurrence_unit")
+  recurrenceInterval      Int     @default(1) @map("recurrence_interval")
+  recurrenceAnchor        RecurrenceAnchor @default(CALENDAR) @map("recurrence_anchor")
+  /// Whether a one-off visit settles the period, or only recurring ones do.
+  oneOffSettlesPeriod     Boolean @default(false) @map("one_off_settles_period")
+  // Minimum days between two applications of the same multi-visit job.
+  // 0 means the rubro has no technical waiting period. Advisory: the UI warns
+  // but never blocks, and nothing is ever scheduled automatically.
+  minDaysBetweenApplications Int  @default(15) @map("min_days_between_applications")
+
+  // What this business calls each of the three things. Shown in the UI so the
+  // app speaks the rubro's language instead of a fumigator's.
+  labelRecurringAgreement String  @default("Abono") @map("label_recurring_agreement") @db.VarChar(50)
+  labelOneOffVisit        String  @default("Especial") @map("label_one_off_visit") @db.VarChar(50)
+  labelMultiVisitJob      String  @default("Tratamiento") @map("label_multi_visit_job") @db.VarChar(50)
+  defaultDurationMinutes  Int     @default(45) @map("default_duration_minutes")
+
+  /// Set once the owner finishes the onboarding wizard.
+  onboardedAt             DateTime? @map("onboarded_at")
   customServiceTypes      Json    @default("[]") @map("custom_service_types")
   customVisitStatuses     Json    @default("[]") @map("custom_visit_statuses")
   brandPrimaryColor       String? @map("brand_primary_color") @db.VarChar(7)
