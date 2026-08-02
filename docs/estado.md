@@ -218,10 +218,19 @@ solo", y "cancelada salda / eliminada vuelve".
 6. **La agenda no muestra a qué trabajo pertenece una visita.** La ficha del
    cliente sí (columna Servicio, "2/3"), el calendario no.
 
-7. **Acciones de auditoría sin escritor:** `LOGIN`, `SCHEDULE`, `IMPORT` y
-   `ARCHIVE` existen en `AuditAction` pero nadie las escribe. Están fuera del
-   filtro de Historial hasta que existan. `LOGIN` en particular requiere decidir
-   volumen y privacidad antes de meterlo en `auth.ts`.
+7. **Acciones de auditoría sin escritor:** `LOGIN`, `SCHEDULE` y `ARCHIVE`
+   existen en `AuditAction` pero nadie las escribe. Están fuera del filtro de
+   Historial hasta que existan. `LOGIN` en particular requiere decidir volumen y
+   privacidad antes de meterlo en `auth.ts`.
+
+9. **Nada de la parte "vendible" está construido.** Es la otra mitad de la Fase 5
+   del plan y no estaba en esta lista:
+   - **Superadmin:** no hay forma de administrar tenants desde afuera. El
+     `Tenant` "ServiFlow Platform" existe en el seed pero no tiene pantallas.
+   - **Facturación:** `Plan` y `Subscription` están en el schema, sin nada que
+     los lea ni cobre. De acá salen también los límites por plan del punto 1.
+   - **Portal del cliente:** el rol `CLIENT` existe en la matriz de permisos y
+     `User.clientId` también, pero no hay ninguna pantalla para ese rol.
 
 8. **El header sigue sin usar `notes.dueReminders`.** La página de Notas ya marca
    los vencidos y permite archivarlos; falta la campanita.

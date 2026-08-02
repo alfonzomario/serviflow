@@ -60,10 +60,16 @@ const ENTITY_LABELS: Record<string, string> = {
 
 const ENTITY_OPTIONS = ["visit", "job", "client", "request", "transaction", "user"] as const
 
-// LOGIN, SCHEDULE, IMPORT and ARCHIVE exist in `AuditAction` but nothing writes
-// them yet, so they are not offered: a filter that can never match reads like a
-// bug. Add them here when their call sites exist.
-const ACTION_OPTIONS = ["CREATE", "UPDATE", "DELETE", "STATUS_CHANGE"] as const
+// LOGIN, SCHEDULE and ARCHIVE exist in `AuditAction` but nothing writes them
+// yet, so they are not offered: a filter that can never match reads like a bug.
+// Add them here when their call sites exist.
+const ACTION_OPTIONS = [
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "STATUS_CHANGE",
+  "IMPORT",
+] as const
 
 /** Renders the `changes` JSON as readable lines instead of dumping the blob. */
 function Changes({ value }: { value: unknown }) {
