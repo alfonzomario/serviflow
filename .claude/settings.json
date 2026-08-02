@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm run typecheck)",
+      "Bash(npx vitest run*)",
+      "Bash(npm test*)",
+
+      "Bash(npm run dev*)",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(rm -rf .next)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")",
+
+      "Bash(npx prisma generate*)",
+      "Bash(npx prisma db push*)",
+      "Bash(npx prisma db seed*)",
+      "Bash(npx prisma migrate dev*)",
+      "Bash(npx prisma studio*)",
+
+      "Bash(/opt/homebrew/opt/postgresql@17/bin/psql *)",
+      "Bash(/opt/homebrew/opt/postgresql@17/bin/pg_isready*)",
+
+      "mcp__Claude_Browser__computer",
+      "mcp__Claude_Browser__navigate",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__read_network_requests",
+      "mcp__Claude_Browser__resize_window",
+      "mcp__Claude_Browser__find",
+      "mcp__Claude_Browser__tabs_context"
+    ]
+  }
+}

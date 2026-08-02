@@ -35,8 +35,8 @@ cd serviflow
 npm install
 
 # Copy env vars
-cp .env.example .env.local
-# Edit .env.local with your database URL and secrets
+cp .env.example .env
+# Edit .env with your database URL and secrets
 
 # Push database schema
 npx prisma db push
@@ -49,6 +49,26 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see the app.
+
+Prisma reads `.env` (not `.env.local`), so keep the database URL there.
+
+Demo logins created by the seed:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Super Admin | `admin@serviflow.app` | `admin123` |
+| Owner | `owner@lozanor.com` | `demo1234` |
+| Operator | `operador@lozanor.com` | `oper1234` |
+
+If port 5432 is already taken by another PostgreSQL install, run a second server
+on 5433 and point `DATABASE_URL` at it:
+
+```bash
+brew install postgresql@17
+echo "port = 5433" >> /opt/homebrew/var/postgresql@17/postgresql.conf
+brew services start postgresql@17
+createdb -h 127.0.0.1 -p 5433 serviflow
+```
 
 ### Environment Variables
 
