@@ -1,0 +1,523 @@
+/**
+ * El motor del importador: parsear, mapear, validar.
+ *
+ * Todo lo que decide *qué* se va a escribir vive acá. Lo que efectivamente
+ * escribe en la base está en `import.service.ts`. La división es la misma que
+ * entre `pending.ts` y `visit.service.ts`, y por el mismo motivo: esta parte es
+ * donde está el riesgo, así que tiene que poder probarse sin base de datos.
+ *
+ * Dos criterios que atraviesan todo el archivo:
+ *
+ *  - **Nunca rechazar una fila por un campo opcional.** Un email mal escrito no
+ *    puede hacer perder un cliente: se importa sin email y queda el aviso. Solo
+ *    falta un campo requerido tira la fila.
+ *  - **La planilla es de otro.** Los formatos son los que son: separador `;`
+ *    porque Excel en es-AR exporta así, números "1.234,56", fechas dd/MM/yyyy.
+ *    Adaptarse es tarea nuestra, no del usuario.
+ */
+
+import {
+  signaturesFor,
+  type ColumnSignature,
+  type ImportEntity,
+} from '../lib/import/signatures';
+
+// ─── Parseo ────────────────────────────────────────────────────────────────
+
+/**
+ * Elige el separador contando cuál produce más columnas en la primera línea.
+ *
+ * Excel en español exporta con `;` porque la coma es el separador decimal. Si
+ * asumiéramos `,` esas planillas entrarían como una sola columna gigante.
+ */
+export const detectDelimiter = (firstLine: string): string => {
+  const candidates = [',', ';', '\t', '|'];
+  let best = ',';
+  let bestCount = 0;
+
+  for (const candidate of candidates) {
+    // Contar fuera de comillas, si no un "Pérez, Juan" infla la cuenta.
+    let count = 0;
+    let inQuotes = false;
+    for (let i = 0; i < firstLine.length; i++) {
+      const char = firstLine[i];
+      if (char === '"') inQuotes = !inQuotes;
+      else if (char === candidate && !inQuotes) count++;
+    }
+    if (count > bestCount) {
+      bestCount = count;
+      best = candidate;
+    }
+  }
+
+  return best;
+};
+
+/**
+ * Parser de CSV/TSV. Soporta comillas, comas y saltos de línea dentro de un
+ * campo, y `""` como comilla escapada — o sea, lo que produce Excel.
+ */
+export const parseDelimited = (
+  text: string
+): { headers: string[]; rows: string[][] } => {
+  // El BOM que mete Excel se cuela en el primer encabezado y rompe el mapeo.
+  const clean = text.replace(/^﻿/, '');
+  if (!clean.trim()) return { headers: [], rows: [] };
+
+  const firstLineEnd = clean.search(/\r?\n/);
+  const firstLine = firstLineEnd === -1 ? clean : clean.slice(0, firstLineEnd);
+  const delimiter = detectDelimiter(firstLine);
+
+  const records: string[][] = [];
+  let field = '';
+  let record: string[] = [];
+  let inQuotes = false;
+
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (clean[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === delimiter) {
+      record.push(field);
+      field = '';
+    } else if (char === '\n') {
+      record.push(field);
+      records.push(record);
+      record = [];
+      field = '';
+    } else if (char !== '\r') {
+      field += char;
+    }
+  }
+
+  // Última fila sin salto de línea final.
+  if (field !== '' || record.length > 0) {
+    record.push(field);
+    records.push(record);
+  }
+
+  const headers = (records.shift() ?? []).map((header) => header.trim());
+
+  // Excel agrega filas totalmente vacías al final de casi cualquier export.
+  const rows = records.filter((row) => row.some((cell) => cell.trim() !== ''));
+
+  return { headers, rows };
+};
+
+// ─── Mapeo automático ──────────────────────────────────────────────────────
+
+const normalise = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // sacar acentos
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+export type ColumnMapping = {
+  /** Encabezado tal cual viene en el archivo. */
+  sourceColumn: string;
+  /** Índice de la columna, porque puede haber encabezados repetidos. */
+  sourceIndex: number;
+  /** Campo destino, o null si se ignora. */
+  targetField: string | null;
+  /** `auto` cuando lo detectamos, `manual` cuando lo eligió el usuario. */
+  confidence: 'auto' | 'manual' | 'none';
+};
+
+/**
+ * Empareja los encabezados del archivo contra los alias conocidos.
+ *
+ * Prioriza coincidencia exacta sobre parcial: con encabezados "Teléfono" y
+ * "Teléfono alternativo", el exacto se queda con el campo y el otro no compite.
+ * Un campo no se asigna dos veces — la segunda columna queda sin mapear para
+ * que el usuario decida, en vez de pisar silenciosamente a la primera.
+ */
+export const autoMapColumns = (
+  headers: string[],
+  entity: ImportEntity
+): ColumnMapping[] => {
+  const signatures = signaturesFor(entity);
+  const mappings: ColumnMapping[] = headers.map((header, index) => ({
+    sourceColumn: header,
+    sourceIndex: index,
+    targetField: null,
+    confidence: 'none',
+  }));
+
+  const taken = new Set<string>();
+
+  const claim = (matcher: (header: string, sig: ColumnSignature) => boolean) => {
+    for (const mapping of mappings) {
+      if (mapping.targetField) continue;
+      const header = normalise(mapping.sourceColumn);
+      if (!header) continue;
+
+      const match = signatures.find(
+        (sig) => !taken.has(sig.field) && matcher(header, sig)
+      );
+      if (match) {
+        mapping.targetField = match.field;
+        mapping.confidence = 'auto';
+        taken.add(match.field);
+      }
+    }
+  };
+
+  // Primera pasada: coincidencia exacta con algún alias.
+  claim((header, sig) => sig.aliases.some((alias) => normalise(alias) === header));
+
+  // Segunda: el encabezado contiene un alias (o al revés), para cosas como
+  // "Nombre del cliente" o "Tel.".
+  claim((header, sig) =>
+    sig.aliases.some((alias) => {
+      const normalised = normalise(alias);
+      // Alias muy cortos solo matchean exacto, si no "tel" pesca "teletrabajo".
+      if (normalised.length < 4) return false;
+      return header.includes(normalised) || normalised.includes(header);
+    })
+  );
+
+  return mappings;
+};
+
+// ─── Normalización de valores ──────────────────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/**
+ * Convierte a número aceptando formato es-AR ("1.234,56") y en-US ("1,234.56").
+ *
+ * Cuando aparecen los dos separadores, el último es el decimal. Cuando hay uno
+ * solo seguido de exactamente tres dígitos se asume separador de miles, que es
+ * lo que hace que "1.500" sea mil quinientos y no uno coma cinco.
+ */
+export const parseNumber = (raw: string): number | null => {
+  const value = raw.replace(/[^\d.,-]/g, '').trim();
+  if (!value) return null;
+
+  const lastComma = value.lastIndexOf(',');
+  const lastDot = value.lastIndexOf('.');
+
+  let normalised: string;
+  if (lastComma !== -1 && lastDot !== -1) {
+    const decimalSep = lastComma > lastDot ? ',' : '.';
+    const thousandSep = decimalSep === ',' ? '.' : ',';
+    normalised = value.split(thousandSep).join('').replace(decimalSep, '.');
+  } else if (lastComma !== -1) {
+    const decimals = value.length - lastComma - 1;
+    normalised = decimals === 3 ? value.split(',').join('') : value.replace(',', '.');
+  } else if (lastDot !== -1) {
+    const decimals = value.length - lastDot - 1;
+    normalised = decimals === 3 ? value.split('.').join('') : value;
+  } else {
+    normalised = value;
+  }
+
+  const parsed = Number(normalised);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/**
+ * Fechas en los formatos que aparecen en planillas reales. Prioriza dd/MM sobre
+ * MM/dd: la planilla es argentina hasta que se demuestre lo contrario, y si el
+ * primer número es mayor a 12 no hay ambigüedad posible.
+ */
+export const parseImportDate = (raw: string): Date | null => {
+  const value = raw.trim();
+  if (!value) return null;
+
+  const iso = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const slash = value.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+  if (slash) {
+    let [, first, second, year] = slash;
+    let day = Number(first);
+    let month = Number(second);
+
+    // Solo damos vuelta cuando el primero no puede ser día.
+    if (day > 12 && month <= 12) {
+      // dd/MM, ya está bien.
+    } else if (month > 12 && day <= 12) {
+      [day, month] = [month, day];
+    }
+
+    const fullYear = year.length === 2 ? 2000 + Number(year) : Number(year);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    const date = new Date(fullYear, month - 1, day);
+    // Rechaza 31/02: el rollover de Date lo convertiría en marzo.
+    if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
+  }
+
+  return null;
+};
+
+/** Deja solo dígitos y el `+` inicial. Números demasiado cortos no son teléfonos. */
+export const normalisePhone = (raw: string): string | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const plus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 6) return null;
+  return plus ? `+${digits}` : digits;
+};
+
+export const parseList = (raw: string): string[] =>
+  raw
+    .split(/[,;/|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+/** Busca el valor canónico del enum comparando sin acentos ni mayúsculas. */
+export const parseEnum = (raw: string, signature: ColumnSignature): string | null => {
+  if (!signature.enumValues) return null;
+  const value = normalise(raw);
+  if (!value) return null;
+
+  for (const [canonical, forms] of Object.entries(signature.enumValues)) {
+    if (canonical.toLowerCase() === value) return canonical;
+    if (forms.some((form) => normalise(form) === value)) return canonical;
+  }
+  return null;
+};
+
+// ─── Validación ────────────────────────────────────────────────────────────
+
+export type RowIssue = {
+  /** Número de fila como lo ve el usuario en su planilla: 1 = primer dato. */
+  row: number;
+  field: string;
+  label: string;
+  type: 'error' | 'warning';
+  message: string;
+  originalValue: string;
+};
+
+export type PreparedRow = {
+  row: number;
+  values: Record<string, unknown>;
+  /** Clave de deduplicación dentro del archivo. */
+  dedupeKey: string;
+};
+
+export type ValidationResult = {
+  totalRows: number;
+  /** Filas que se van a importar (las que no tienen ningún error). */
+  validRows: PreparedRow[];
+  issues: RowIssue[];
+  counts: { valid: number; warnings: number; errors: number };
+  /** Campos requeridos que nadie mapeó. Bloquea la importación entera. */
+  missingRequired: string[];
+};
+
+/**
+ * Convierte las filas crudas en registros listos para escribir, juntando los
+ * avisos por el camino.
+ *
+ * Una fila con error no se importa; una fila con warning sí, sin el campo que
+ * falló. Esa distinción es la que evita que una planilla real —que siempre
+ * tiene algo mal en alguna celda— se vuelva imposible de importar.
+ */
+export const validateRows = ({
+  rows,
+  mappings,
+  entity,
+}: {
+  rows: string[][];
+  mappings: ColumnMapping[];
+  entity: ImportEntity;
+}): ValidationResult => {
+  const signatures = signaturesFor(entity);
+  const active = mappings.filter((mapping) => mapping.targetField !== null);
+
+  const mappedFields = new Set(active.map((mapping) => mapping.targetField as string));
+  const missingRequired = signatures
+    .filter((sig) => sig.required && !mappedFields.has(sig.field))
+    .map((sig) => sig.label);
+
+  const issues: RowIssue[] = [];
+  const validRows: PreparedRow[] = [];
+  const rowsWithWarnings = new Set<number>();
+  const seenKeys = new Map<string, number>();
+
+  if (missingRequired.length > 0) {
+    return {
+      totalRows: rows.length,
+      validRows: [],
+      issues: [],
+      counts: { valid: 0, warnings: 0, errors: 0 },
+      missingRequired,
+    };
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+    const values: Record<string, unknown> = {};
+    let hasError = false;
+
+    for (const mapping of active) {
+      const signature = signatures.find((sig) => sig.field === mapping.targetField);
+      if (!signature) continue;
+
+      const raw = (row[mapping.sourceIndex] ?? '').trim();
+
+      const fail = (message: string) => {
+        hasError = true;
+        issues.push({
+          row: rowNumber,
+          field: signature.field,
+          label: signature.label,
+          type: 'error',
+          message,
+          originalValue: raw,
+        });
+      };
+
+      const warn = (message: string) => {
+        rowsWithWarnings.add(rowNumber);
+        issues.push({
+          row: rowNumber,
+          field: signature.field,
+          label: signature.label,
+          type: 'warning',
+          message,
+          originalValue: raw,
+        });
+      };
+
+      if (!raw) {
+        if (signature.required) fail('Está vacío y es obligatorio');
+        continue;
+      }
+
+      switch (signature.type) {
+        case 'string':
+          values[signature.field] = raw;
+          break;
+
+        case 'email': {
+          if (!EMAIL_RE.test(raw)) {
+            warn('No parece un email válido. Se importa sin email.');
+            break;
+          }
+          values[signature.field] = raw.toLowerCase();
+          break;
+        }
+
+        case 'phone': {
+          const phone = normalisePhone(raw);
+          if (!phone) {
+            warn('No parece un teléfono. Se importa sin teléfono.');
+            break;
+          }
+          values[signature.field] = phone;
+          break;
+        }
+
+        case 'date': {
+          const date = parseImportDate(raw);
+          if (!date) {
+            if (signature.required) fail('No se entiende la fecha');
+            else warn('No se entiende la fecha. Se importa sin ese dato.');
+            break;
+          }
+          values[signature.field] = date;
+          break;
+        }
+
+        case 'currency': {
+          const amount = parseNumber(raw);
+          if (amount === null) {
+            if (signature.required) fail('No se entiende el importe');
+            else warn('No se entiende el importe. Se importa en 0.');
+            break;
+          }
+          if (amount < 0) {
+            warn('Es negativo. Se importa en 0.');
+            values[signature.field] = 0;
+            break;
+          }
+          values[signature.field] = amount;
+          break;
+        }
+
+        case 'list':
+          values[signature.field] = parseList(raw);
+          break;
+
+        case 'enum': {
+          const parsed = parseEnum(raw, signature);
+          if (!parsed) {
+            warn('Valor no reconocido. Se usa el valor por defecto.');
+            break;
+          }
+          values[signature.field] = parsed;
+          break;
+        }
+      }
+    }
+
+    if (hasError) return;
+
+    // Dedupe dentro del archivo: mismo nombre + misma dirección. La comparación
+    // contra lo que ya está en la base ocurre al ejecutar, no acá.
+    const dedupeKey = normalise(
+      `${String(values.name ?? '')}|${String(values.address ?? '')}`
+    );
+
+    const firstSeen = seenKeys.get(dedupeKey);
+    if (firstSeen !== undefined) {
+      issues.push({
+        row: rowNumber,
+        field: 'name',
+        label: 'Nombre',
+        type: 'warning',
+        message: `Repetido dentro del archivo (ya está en la fila ${firstSeen})`,
+        originalValue: String(values.name ?? ''),
+      });
+      rowsWithWarnings.add(rowNumber);
+    } else {
+      seenKeys.set(dedupeKey, rowNumber);
+    }
+
+    validRows.push({ row: rowNumber, values, dedupeKey });
+  });
+
+  const errorRows = new Set(
+    issues.filter((issue) => issue.type === 'error').map((issue) => issue.row)
+  );
+
+  return {
+    totalRows: rows.length,
+    validRows,
+    issues,
+    counts: {
+      valid: validRows.length,
+      warnings: rowsWithWarnings.size,
+      errors: errorRows.size,
+    },
+    missingRequired: [],
+  };
+};
