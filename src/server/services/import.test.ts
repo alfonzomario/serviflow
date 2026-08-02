@@ -9,10 +9,12 @@ import {
   parseNumber,
   groupIntoJobs,
   resolveClientRefs,
+  parseEnum,
   toDateOnly,
   validateRows,
   type ColumnMapping,
 } from './import';
+import { signatureOf } from '../lib/import/signatures';
 
 const mapOf = (mappings: ColumnMapping[]) =>
   Object.fromEntries(
@@ -713,5 +715,42 @@ describe('movimientos', () => {
       'Fecha,Importe,Categoría\n01/03/2026,1000,Visita\n01/03/2026,1000,Nafta'
     )
     expect(distintos.issues).toHaveLength(0)
+  })
+})
+
+describe('valores de la app vieja', () => {
+  // Los estados y tipos que usa `legacy/index.html`. Sin estos alias la
+  // migración caía al default en silencio — y OMITIDA_MES entrando como
+  // realizada contaría como visita real un período que se saldó sin ir.
+  const legacy: [Parameters<typeof signatureOf>[0], string, string, string][] = [
+    ['visits', 'status', 'REALIZADA', 'COMPLETED'],
+    ['visits', 'status', 'CONFIRMADA', 'CONFIRMED'],
+    ['visits', 'status', 'POR_CONFIRMAR', 'PENDING_CONFIRM'],
+    ['visits', 'status', 'CANCELADA', 'CANCELLED'],
+    ['visits', 'status', 'OMITIDA_MES', 'SKIPPED'],
+    ['visits', 'visitType', 'ABONO', 'CONTRACT'],
+    ['visits', 'visitType', 'ESPECIAL', 'SPECIAL'],
+    ['visits', 'paymentStatus', 'PAGADO', 'PAID'],
+    ['visits', 'paymentStatus', 'PENDIENTE', 'PENDING'],
+    ['clients', 'status', 'ACTIVO', 'ACTIVE'],
+    ['clients', 'status', 'INACTIVO', 'INACTIVE'],
+    ['clients', 'relationshipType', 'ABONO', 'CONTRACT'],
+    ['clients', 'relationshipType', 'ESPECIAL', 'ON_DEMAND'],
+    ['transactions', 'type', 'INGRESO', 'INCOME'],
+  ]
+
+  it.each(legacy)('%s.%s reconoce "%s"', (entity, field, raw, expected) => {
+    expect(parseEnum(raw, signatureOf(entity, field)!)).toBe(expected)
+  })
+})
+
+describe('encabezados cortos', () => {
+  it('no deja que un "id" pelado se lleve un campo por substring', () => {
+    // "modalidad" contiene "id": sin el guard, la columna id de la app vieja se
+    // mapeaba a tipo de visita y dejaba a la columna real sin mapear.
+    const mappings = autoMapColumns(['id', 'type'], 'visits')
+
+    expect(mappings[0].targetField).toBeNull()
+    expect(mappings[1].targetField).toBe('visitType')
   })
 })

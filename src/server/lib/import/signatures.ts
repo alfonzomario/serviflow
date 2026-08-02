@@ -121,9 +121,19 @@ const CLIENT_SIGNATURES: ColumnSignature[] = [
     label: 'Tipo de relación',
     aliases: ['tipo', 'tipo de cliente', 'relacion', 'relación', 'modalidad', 'abono'],
     type: 'enum',
+    // `ESPECIAL` es como la app vieja marca al cliente sin abono.
     enumValues: {
       CONTRACT: ['abono', 'contrato', 'contract', 'mensual', 'recurrente', 'fijo', 'si', 'sí'],
-      ON_DEMAND: ['ocasional', 'puntual', 'on demand', 'eventual', 'esporadico', 'esporádico', 'no'],
+      ON_DEMAND: [
+        'ocasional',
+        'puntual',
+        'especial',
+        'on demand',
+        'eventual',
+        'esporadico',
+        'esporádico',
+        'no',
+      ],
     },
     hint: 'Si no se mapea, todos entran como ocasionales.',
   },
@@ -207,7 +217,18 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
   {
     field: 'serviceType',
     label: 'Tipo de servicio',
-    aliases: ['servicio', 'tipo de servicio', 'service', 'tratamiento', 'trabajo', 'plaga'],
+    // `pestTypes` es como la app vieja llama a esta columna.
+    aliases: [
+      'servicio',
+      'tipo de servicio',
+      'service',
+      'tratamiento',
+      'trabajo',
+      'plaga',
+      'plagas',
+      'pesttypes',
+      'pest types',
+    ],
     type: 'string',
   },
   {
@@ -215,19 +236,38 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
     label: 'Estado',
     aliases: ['estado', 'status', 'situacion', 'situación'],
     type: 'enum',
+    // Los valores en MAYÚSCULA_CON_GUION son los de la app vieja de Apps Script
+    // (`legacy/index.html`). Sin ellos la migración los daba por no reconocidos
+    // y caía al default: una visita OMITIDA_MES habría entrado como realizada,
+    // contando como visita de verdad un período que se saldó sin ir.
     enumValues: {
       COMPLETED: ['realizada', 'completada', 'hecha', 'done', 'completed', 'ok', 'si', 'sí'],
       CONFIRMED: ['confirmada', 'confirmed', 'agendada'],
-      PENDING_CONFIRM: ['programada', 'scheduled', 'pendiente', 'a confirmar'],
+      PENDING_CONFIRM: [
+        'programada',
+        'scheduled',
+        'pendiente',
+        'a confirmar',
+        'por confirmar',
+        'por_confirmar',
+      ],
       CANCELLED: ['cancelada', 'cancelled', 'canceled', 'anulada'],
-      SKIPPED: ['omitida', 'saltada', 'skipped', 'no se hizo'],
+      SKIPPED: [
+        'omitida',
+        'saltada',
+        'skipped',
+        'no se hizo',
+        'omitida mes',
+        'omitida_mes',
+      ],
     },
     hint: 'Sin mapear, las visitas con fecha pasada entran como completadas.',
   },
   {
     field: 'visitType',
     label: 'Tipo de visita',
-    aliases: ['tipo', 'modalidad', 'tipo de visita', 'abono'],
+    // `type` es el nombre de la columna en la hoja Visits de la app vieja.
+    aliases: ['tipo', 'type', 'modalidad', 'tipo de visita', 'abono'],
     type: 'enum',
     enumValues: {
       CONTRACT: ['abono', 'contrato', 'contract', 'mensual', 'recurrente', 'si', 'sí'],

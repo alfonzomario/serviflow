@@ -189,8 +189,11 @@ export const autoMapColumns = (
   claim((header, sig) =>
     sig.aliases.some((alias) => {
       const normalised = normalise(alias);
-      // Alias muy cortos solo matchean exacto, si no "tel" pesca "teletrabajo".
-      if (normalised.length < 4) return false;
+      // Los dos lados tienen que ser largos para arriesgar un substring. Con
+      // alias cortos "tel" pescaba "teletrabajo"; con encabezados cortos, un
+      // "id" pelado caía en "modalidad" —que lo contiene— y se llevaba el campo
+      // tipo de visita, dejando a la columna real sin mapear.
+      if (normalised.length < 4 || header.length < 4) return false;
       return header.includes(normalised) || normalised.includes(header);
     })
   );
