@@ -33,7 +33,12 @@ const SECTION_NAMES: Record<string, string> = {
   "/team": "Equipo",
   "/settings": "Ajustes",
   "/import": "Importar",
+  "/ia": "Asesor IA",
+  "/facturacion": "Facturación",
+  "/superadmin": "Superadmin",
+  "/portal": "Portal del Cliente",
 }
+
 
 const sectionFor = (pathname: string) => {
   if (SECTION_NAMES[pathname]) return SECTION_NAMES[pathname]

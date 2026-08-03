@@ -11,9 +11,10 @@ import { tenantRouter } from './routers/tenant';
 import { dashboardRouter } from './routers/dashboard';
 import { historyRouter } from './routers/history';
 import { importRouter } from './routers/import';
-
-// Still to come (see docs/implementation_plan.md): ai, superadmin.
-const placeholderRouter = router({});
+import { aiRouter } from './routers/ai';
+import { superadminRouter } from './routers/superadmin';
+import { subscriptionRouter } from './routers/subscription';
+import { portalRouter } from './routers/portal';
 
 export const appRouter = router({
   auth: authRouter,
@@ -28,7 +29,14 @@ export const appRouter = router({
   tenant: tenantRouter,
   history: historyRouter,
   import: importRouter,
-  ai: placeholderRouter,
+  ai: aiRouter,
+  superadmin: superadminRouter,
+  subscription: subscriptionRouter,
+  portal: portalRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
+
+
+

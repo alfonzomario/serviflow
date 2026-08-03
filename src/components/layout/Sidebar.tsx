@@ -18,7 +18,10 @@ import {
   Database,
   Settings,
   Building,
-  LogOut
+  LogOut,
+  Sparkles,
+  CreditCard,
+  ShieldCheck,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -66,11 +69,10 @@ export function Sidebar({ className, onClose }: SidebarProps) {
         { name: "Historial", href: "/history", icon: History, module: "agenda", action: "read" },
       ],
     },
-    // Asesor IA (/ai) todavía no existe como página: el router está stub. Se
-    // agrega acá cuando exista — un link a un 404 es peor que no tener el link.
     {
       title: "Herramientas",
       items: [
+        { name: "Asesor IA", href: "/ia", icon: Sparkles, module: "agenda", action: "read" },
         { name: "Notas", href: "/notes", icon: FileText, module: "notes", action: "read" },
         { name: "Importar", href: "/import", icon: Database, module: "settings", action: "write" },
       ],
@@ -78,8 +80,10 @@ export function Sidebar({ className, onClose }: SidebarProps) {
     {
       title: "Administración",
       items: [
+        { name: "Facturación", href: "/facturacion", icon: CreditCard, module: "settings", action: "read" },
         { name: "Equipo", href: "/team", icon: Building, module: "team", action: "read" },
         { name: "Ajustes", href: "/settings", icon: Settings, module: "settings", action: "read" },
+        { name: "Superadmin", href: "/superadmin", icon: ShieldCheck, module: "settings", action: "write" },
       ],
     },
   ]

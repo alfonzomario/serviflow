@@ -309,8 +309,9 @@ export const visitsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const visit = await ctx.db.visit.findFirst({
         where: { id: input.id, ...tenantWhere(ctx.tenantId) },
-        select: { status: true },
+        select: { status: true, scheduledAt: true },
       });
+
       if (!visit) throw new TRPCError({ code: 'NOT_FOUND' });
       if (visit.status === 'COMPLETED') {
         throw new TRPCError({
@@ -319,14 +320,26 @@ export const visitsRouter = router({
         });
       }
 
-      return ctx.db.visit.update({
+      const updated = await ctx.db.visit.update({
         where: { id: input.id, tenantId: ctx.tenantId },
         data: {
           scheduledAt: input.scheduledAt,
           ...(input.durationMinutes && { durationMinutes: input.durationMinutes }),
         },
       });
+
+      await recordAudit({
+        tenantId: ctx.tenantId,
+        userId: ctx.session.user.id,
+        action: 'SCHEDULE',
+        entityType: 'visit',
+        entityId: input.id,
+        changes: { scheduledAt: { old: visit.scheduledAt, new: input.scheduledAt } },
+      });
+
+      return updated;
     }),
+
 
   updateStatus: permissionProcedure('agenda', 'write')
     .input(z.object({ id: z.string().uuid(), status: VisitStatusEnum }))
