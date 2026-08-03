@@ -110,6 +110,8 @@ export default function PendingPage() {
     setDialogOpen(true)
   }
 
+  const [viewMode, setViewMode] = React.useState<"list" | "grid">("list")
+
   const items = data?.items ?? []
   const recurring = items.filter((item) => item.kind === "RECURRING_SERVICE")
   const applications = items.filter((item) => item.kind === "MISSING_APPLICATION")
@@ -135,16 +137,37 @@ export default function PendingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
-          <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="rounded-lg h-8 w-8">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="min-w-36 text-center text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
-            {MONTHS[month.getMonth()]} {month.getFullYear()}
-          </span>
-          <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="rounded-lg h-8 w-8">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-8 px-2.5 text-xs gap-1.5"
+            >
+              Lista
+            </Button>
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="h-8 px-2.5 text-xs gap-1.5"
+            >
+              Cuadrícula
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
+            <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="rounded-lg h-8 w-8">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-36 text-center text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
+              {MONTHS[month.getMonth()]} {month.getFullYear()}
+            </span>
+            <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="rounded-lg h-8 w-8">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -176,88 +199,96 @@ export default function PendingPage() {
                 {`Ningún ${labels.recurring.toLowerCase()} vence en este mes.`}
               </p>
             ) : (
-              <div className="grid gap-3">
+              <div className={viewMode === "grid" ? "grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" : "grid gap-3"}>
                 {recurring.map((item) => {
                   if (item.kind !== "RECURRING_SERVICE") return null
-                  const isOverdue = item.daysOverdue > 0
+                  const itemDue = new Date(item.dueAt)
+                  const isPreviousMonth =
+                    itemDue.getFullYear() < month.getFullYear() ||
+                    (itemDue.getFullYear() === month.getFullYear() && itemDue.getMonth() < month.getMonth())
 
                   return (
                     <Card
                       key={item.client.id}
                       className={
-                        isOverdue
-                          ? "rounded-2xl border-l-4 border-l-red-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
-                          : "rounded-2xl border-l-4 border-l-amber-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
+                        isPreviousMonth
+                          ? "rounded-2xl border-l-4 border-l-red-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md flex flex-col justify-between"
+                          : "rounded-2xl border-l-4 border-l-sky-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md flex flex-col justify-between"
                       }
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-medium">{item.client.name}</h3>
-                            {isOverdue && (
-                              <Badge
-                                variant="outline"
-                                className="border-none bg-red-500/10 text-red-600"
-                              >
-                                <AlertTriangle className="mr-1 h-3 w-3" />
-                                Venció el {formatDate(item.dueAt)} · {item.daysOverdue}{" "}
-                                {item.daysOverdue === 1 ? "día" : "días"} de atraso
-                              </Badge>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            {item.client.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {formatPhone(item.client.phone)}
-                              </span>
-                            )}
-                            {item.client.address && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {item.client.address}
-                              </span>
-                            )}
-                            <span>
-                              {item.lastVisitAt
-                                ? `Última visita: ${formatDate(item.lastVisitAt)}`
-                                : "Sin visitas registradas"}
-                            </span>
-                            <span>{describeCadence(item.cadence.unit, item.cadence.interval)}</span>
-                            {!isOverdue && <span>Vence el {formatDate(item.dueAt)}</span>}
-                          </div>
-
-                          {item.client.serviceTypes.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {item.client.serviceTypes.map((service) => (
-                                <Badge key={service} variant="secondary" className="font-normal">
-                                  {service}
-                                </Badge>
-                              ))}
-                            </div>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="font-semibold text-base truncate">{item.client.name}</h3>
+                          {isPreviousMonth ? (
+                            <Badge variant="outline" className="border-none bg-red-500/10 text-red-600 text-xs">
+                              <AlertTriangle className="mr-1 h-3 w-3" />
+                              Venció en {MONTHS[itemDue.getMonth()]}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-none bg-sky-500/10 text-sky-600 text-xs font-medium">
+                              Abono de {MONTHS[itemDue.getMonth()]}
+                            </Badge>
                           )}
                         </div>
 
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setSettling({
-                                clientId: item.client.id,
-                                clientName: item.client.name,
-                                dueAt: new Date(item.dueAt),
-                              })
-                            }
-                          >
-                            <CheckCheck className="mr-2 h-4 w-4" />
-                            Saldar
-                          </Button>
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          {item.client.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {formatPhone(item.client.phone)}
+                            </span>
+                          )}
+                          {item.client.address && (
+                            <span className="flex items-center gap-1 truncate">
+                              <MapPin className="h-3 w-3 shrink-0" />
+                              {item.client.address}
+                            </span>
+                          )}
+                          <span className="truncate">
+                            {item.lastVisitAt
+                              ? `Última visita: ${formatDate(item.lastVisitAt)}`
+                              : "Sin visitas registradas"}
+                          </span>
+                          <span>{describeCadence(item.cadence.unit, item.cadence.interval)}</span>
+                        </div>
+
+                        {item.client.serviceTypes.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {item.client.serviceTypes.map((service) => (
+                              <Badge key={service} variant="secondary" className="font-normal text-[10px]">
+                                {service}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-3 mt-2 border-t border-[hsl(var(--border))/0.5]">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() =>
+                            setSettling({
+                              clientId: item.client.id,
+                              clientName: item.client.name,
+                              dueAt: new Date(item.dueAt),
+                            })
+                          }
+                        >
+                          <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
+                          Saldar
+                        </Button>
+                        <div className="flex-1">
                           {scheduleButton(item.client.id, { visitType: "CONTRACT" })}
                         </div>
                       </div>
                     </Card>
+                  )
+                })}
+              </div>
+            )}
+          </section>
                   )
                 })}
               </div>
