@@ -8,6 +8,8 @@ import { db } from './db';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+
+
   providers: [
     Credentials({
       name: 'Credentials',
