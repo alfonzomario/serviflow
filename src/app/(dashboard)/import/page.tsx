@@ -50,54 +50,66 @@ export default function ImportPage() {
   })
 
   const items = history.data ?? []
+  const activeItems = items.filter((entry) => entry.status !== "ROLLED_BACK")
+  const rolledBackItems = items.filter((entry) => entry.status === "ROLLED_BACK")
+
+  const ENTITY_LABELS: Record<string, string> = {
+    clients: "Clientes",
+    visits: "Visitas (Agenda)",
+    transactions: "Movimientos (Cobros/Gastos)",
+    requests: "Solicitudes",
+    notes: "Notas de Clientes",
+    users: "Equipo de trabajo",
+  }
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Importar datos</h1>
         <p className="text-muted-foreground">
-          Traé tu base de clientes desde la planilla que ya usás. Se revisa todo antes de
-          escribir nada, y se puede deshacer.
+          Traé tu información desde planillas de Excel. Se revisa todo antes de guardar y podés deshacer cualquier lote si es necesario.
         </p>
       </div>
 
       <ImportWizard onImported={() => history.refetch()} />
 
-      {items.length > 0 && (
+      {activeItems.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-semibold">Importaciones anteriores</h2>
+          <h2 className="font-semibold text-lg">Importaciones activas</h2>
 
           <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cuándo</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Tipo de Datos</TableHead>
                   <TableHead>Archivo</TableHead>
-                  <TableHead>Quién</TableHead>
-                  <TableHead className="text-right">Resultado</TableHead>
+                  <TableHead className="text-right">Registros creados</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((entry) => {
+                {activeItems.map((entry) => {
                   const status = STATUS_LABELS[entry.status] ?? {
                     label: entry.status,
                     className: "",
                   }
-                  const canUndo =
-                    entry.status !== "ROLLED_BACK" && entry.importedRows > 0
+                  const canUndo = entry.importedRows > 0
+                  const entityName = ENTITY_LABELS[entry.entityType] ?? entry.entityType
 
                   return (
                     <TableRow key={entry.id}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                         {formatDateTime(entry.startedAt)}
                       </TableCell>
+                      <TableCell className="text-sm font-semibold">
+                        {entityName}
+                      </TableCell>
                       <TableCell className="max-w-48 truncate text-sm">
                         {entry.fileName ?? "—"}
                       </TableCell>
-                      <TableCell className="text-sm">{entry.user.name}</TableCell>
-                      <TableCell className="whitespace-nowrap text-right text-sm tabular-nums">
+                      <TableCell className="whitespace-nowrap text-right text-sm tabular-nums font-medium">
                         {entry.importedRows} de {entry.totalRows}
                         {entry.skippedRows > 0 && (
                           <span className="text-muted-foreground">
@@ -115,12 +127,13 @@ export default function ImportPage() {
                         {canUndo && (
                           <Button
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
+                            className="text-xs border-slate-700 hover:bg-red-500/10 hover:text-red-400"
                             onClick={() =>
                               setUndoing({ id: entry.id, rows: entry.importedRows })
                             }
                           >
-                            <Undo2 className="mr-2 h-4 w-4" />
+                            <Undo2 className="mr-1.5 h-3.5 w-3.5" />
                             Deshacer
                           </Button>
                         )}
@@ -132,6 +145,52 @@ export default function ImportPage() {
             </Table>
           </Card>
         </section>
+      )}
+
+      {rolledBackItems.length > 0 && (
+        <details className="group space-y-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground select-none">
+            ▸ Ver importaciones deshechas anteriores ({rolledBackItems.length})
+          </summary>
+
+          <Card className="overflow-x-auto mt-2 opacity-70">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Tipo de Datos</TableHead>
+                  <TableHead>Archivo</TableHead>
+                  <TableHead className="text-right">Filas procesadas</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rolledBackItems.map((entry) => {
+                  const entityName = ENTITY_LABELS[entry.entityType] ?? entry.entityType
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {formatDateTime(entry.startedAt)}
+                      </TableCell>
+                      <TableCell className="text-xs font-medium">{entityName}</TableCell>
+                      <TableCell className="max-w-48 truncate text-xs">
+                        {entry.fileName ?? "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right text-xs tabular-nums">
+                        {entry.importedRows} de {entry.totalRows}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-none bg-slate-500/10 text-slate-500 text-[10px]">
+                          Deshecha
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        </details>
       )}
 
       <ConfirmDialog

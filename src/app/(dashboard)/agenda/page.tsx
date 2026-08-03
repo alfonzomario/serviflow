@@ -183,31 +183,33 @@ export default function AgendaPage() {
     const config: StatusStyle = props.statusConfig || STATUS_CONFIG.SKIPPED;
     const isCompleted = props.status === 'COMPLETED';
 
+    const start = eventInfo.event.start;
+    const end = eventInfo.event.end;
+    const durationMinutes = start && end ? Math.round((end.getTime() - start.getTime()) / 60000) : 45;
+    const isShort = durationMinutes <= 30;
+
     return (
       <div
-        className="w-full h-full p-1.5 flex flex-col justify-between overflow-hidden text-xs rounded-md transition-all"
+        className={`w-full h-full rounded-md transition-all overflow-hidden ${
+          isShort
+            ? 'flex items-center justify-between px-2 py-0.5 text-xs'
+            : 'p-1.5 flex flex-col justify-between text-xs'
+        }`}
         style={{
           backgroundColor: config.bg,
           borderLeft: `4px solid ${config.border}`,
           color: config.text,
         }}
       >
-        <div className="flex items-start gap-1.5 min-w-0">
-          <span className={`h-2 w-2 rounded-full shrink-0 mt-1 ${config.dot}`} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className={`font-semibold truncate ${isCompleted ? 'line-through opacity-85' : ''}`}>
-              {props.clientName || eventInfo.event.title}
-            </div>
-            {props.serviceType && (
-              <div className="text-[11px] opacity-80 truncate">
-                {props.serviceType} {props.application}
-              </div>
-            )}
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot}`} />
+          <div className={`font-semibold truncate min-w-0 flex-1 leading-tight ${isCompleted ? 'line-through opacity-85' : ''}`}>
+            {props.clientName || eventInfo.event.title}
           </div>
         </div>
 
         {eventInfo.timeText && (
-          <div className="text-[10px] font-medium opacity-75 mt-0.5 self-end">
+          <div className="text-[10px] font-medium opacity-80 shrink-0 ml-1">
             {eventInfo.timeText}
           </div>
         )}
@@ -288,6 +290,14 @@ export default function AgendaPage() {
           .fc-timegrid-slot-label { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
           .fc-col-header-cell { padding: 8px 0 !important; }
           .fc-col-header-cell-cushion { color: var(--foreground); font-weight: 600; font-size: 0.875rem; text-decoration: none !important; }
+          .fc-timegrid-event { min-height: 24px !important; border-radius: 0.375rem !important; }
+          .fc-timegrid-event-short .fc-event-main, .fc-timegrid-event .fc-event-main {
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            overflow: hidden !important;
+          }
+          .fc-event-main-frame { display: flex !important; align-items: center !important; width: 100% !important; height: 100% !important; }
           .fc-event {
             cursor: pointer;
             border-radius: 6px !important;

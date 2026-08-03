@@ -117,7 +117,7 @@ async function main() {
     update: {},
     create: {
       tenantId: demoTenant.id,
-      baseAddress: 'Magallanes 1090, San Isidro, Buenos Aires',
+      baseAddress: 'Laprida 365, San Isidro',
       baseLat: -34.4716,
       baseLng: -58.5298,
       aiProvider: 'groq',

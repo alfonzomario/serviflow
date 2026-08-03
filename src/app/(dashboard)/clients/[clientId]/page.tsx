@@ -120,7 +120,7 @@ export default function ClientDetailPage() {
                   : "border-none bg-slate-500/10 text-slate-500"
               }
             >
-              {client.relationshipType === "CONTRACT" ? "Contrato" : "Ocasional"}
+              {client.relationshipType === "CONTRACT" ? "Abono" : "Ocasional"}
             </Badge>
             {client.status === "INACTIVE" && (
               <Badge variant="outline" className="border-none bg-red-500/10 text-red-500">
