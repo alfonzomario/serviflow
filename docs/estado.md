@@ -1,4 +1,4 @@
-# Estado del proyecto — 2 de agosto de 2026
+# Estado del proyecto — 3 de agosto de 2026
 
 Punto de partida para retomar el trabajo sin releer conversaciones anteriores.
 Leer también `CLAUDE.md` (reglas de trabajo) y `docs/implementation_plan.md`
@@ -246,49 +246,66 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
-1. **Sin límites por plan en el importador.** El plan maestro pide Free = 50
-   filas y 1 importación. No está: la tabla `Plan` existe pero no tiene columnas
-   de cuota y nada las lee. Va junto con la facturación, no antes.
-
-2. **Asesor IA.** Router `ai` stub, sin página. Es lo que hacía el prompt de la
+1. **Asesor IA.** Router `ai` stub, sin página. Es lo que hacía el prompt de la
    app vieja (`legacy/code.gs:1816`). `TenantSettings` ya guarda `aiProvider` y
    la key encriptada. **Propone, no reserva** — la regla de no agendar solo lo
    limita.
 
-3. **Las etiquetas por tenant no llegaron a toda la UI.** `useTenantLabels()`
-   existe y lo usan Pendientes, el formulario de visita y la sección de trabajos,
-   pero quedan pantallas diciendo "Abono" y "Tratamiento" hardcodeado.
-
-4. **`getPendingVisits` carga todas las visitas del tenant** (y ahora también
-   todos los trabajos). Un servicio semestral que vence hoy se hizo hace seis
-   meses, así que la ventana no puede ser chica. Está bien a escala demo;
-   revisar junto con el archivado.
-
-5. **Tests:** `pending.ts` (42) e `import.ts` (141) están cubiertos. Los routers
-   no tienen tests de integración — la transacción que abre trabajo + primera
-   visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
-   una importación están probados a mano contra la base pero no automatizados.
-   El plan pide además Playwright.
-
-6. **La agenda no muestra a qué trabajo pertenece una visita.** La ficha del
-   cliente sí (columna Servicio, "2/3"), el calendario no.
-
-7. **Acciones de auditoría sin escritor:** `LOGIN`, `SCHEDULE` y `ARCHIVE`
-   existen en `AuditAction` pero nadie las escribe. Están fuera del filtro de
-   Historial hasta que existan. `LOGIN` en particular requiere decidir volumen y
-   privacidad antes de meterlo en `auth.ts`.
-
-9. **Nada de la parte "vendible" está construido.** Es la otra mitad de la Fase 5
-   del plan y no estaba en esta lista:
+2. **Nada de la parte "vendible" está construido.** Es la otra mitad de la Fase 5
+   del plan:
    - **Superadmin:** no hay forma de administrar tenants desde afuera. El
      `Tenant` "ServiFlow Platform" existe en el seed pero no tiene pantallas.
    - **Facturación:** `Plan` y `Subscription` están en el schema, sin nada que
-     los lea ni cobre. De acá salen también los límites por plan del punto 1.
+     los lea ni cobre.
+   - **Límites por plan en el importador:** el plan maestro pide Free = 50 filas
+     y 1 importación. `Plan` no tiene columnas de cuota y nada las lee. Sale de
+     la facturación, no antes.
    - **Portal del cliente:** el rol `CLIENT` existe en la matriz de permisos y
      `User.clientId` también, pero no hay ninguna pantalla para ese rol.
 
-8. **El header sigue sin usar `notes.dueReminders`.** La página de Notas ya marca
-   los vencidos y permite archivarlos; falta la campanita.
+3. **Tests:** `pending.ts` (42) e `import.ts` (141) están cubiertos. Los routers
+   no tienen tests de integración — la transacción que abre trabajo + primera
+   visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
+   una importación están probados a mano contra la base pero no automatizados.
+   El plan pide además Playwright. **Esto es lo que más duele**: los cuatro bugs
+   de permisos y de UI que aparecieron en el recorrido manual del 3/8 no los
+   habría encontrado ningún test de los que hay.
+
+4. **`getPendingVisits` carga todas las visitas del tenant** (y también todos los
+   trabajos). Un servicio semestral que vence hoy se hizo hace seis meses, así
+   que la ventana no puede ser chica. Está bien a escala demo; revisar junto con
+   el archivado.
+
+5. **Acciones de auditoría sin escritor:** `SCHEDULE` y `ARCHIVE` existen en
+   `AuditAction` pero nadie las escribe. Están fuera del filtro de Historial
+   hasta que existan. (`LOGIN` sigue sin escribirse a propósito: un registro por
+   ingreso crece sin techo y no dice nada que `lastLoginAt` no diga ya.)
+
+---
+
+## Recorrido manual del 3 de agosto de 2026
+
+Primera vez que se abrió la app entera en el navegador con los dos roles en
+lugar de leer el código. Todo lo que apareció está arreglado y commiteado, pero
+vale registrar **qué clase** de cosas se escapan, porque ninguna la agarraba un
+test de los que hay:
+
+**Esconder no es proteger.** Tres cosas que el menú tapaba pero el servidor
+entregaba igual: `users.list` corría con `tenantProcedure` y le daba a cualquier
+operador los emails, roles y la matriz de permisos de todo el equipo;
+`dashboard.kpis` le mandaba la facturación del mes a quien tiene `finance.read`
+en false; y el gráfico de ingresos le dejaba una tarjeta vacía para siempre. El
+patrón: **un procedimiento que no declara permiso es un permiso abierto**, y el
+menú no lo compensa.
+
+**UI que miente.** `lastLoginAt` se mostraba en Equipo y no lo escribía nadie, así
+que la columna decía "Nunca" para todos y siempre. La campanita del header tenía
+el punto rojo hardcodeado. El buscador y el selector de idioma no tenían handler.
+El breadcrumb decía "Dashboard" en inglés en todas las páginas. Nada de esto
+rompe nada — por eso sobrevivió tanto.
+
+> Regla que sale de acá: si una pantalla muestra un dato, algo lo tiene que
+> escribir; y si ofrece un control, tiene que hacer algo. Si no, se saca.
 
 ---
 
