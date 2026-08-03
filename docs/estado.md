@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 147 tests
+npm test             # 163 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -95,9 +95,31 @@ Solicitudes, Pendientes, Finanzas, Notas, Equipo, Historial, Importar, Ajustes,
 Onboarding. **El nav no linkea a nada que no exista**: el Asesor IA sale recién
 cuando tenga página.
 
-**Importador** — el wizard de la Fase 5, funcionando para **clientes, visitas y
-movimientos**: subir CSV → mapeo automático → preview con avisos → importar →
-deshacer.
+**Importador** — el wizard de la Fase 5, funcionando para **las seis entidades
+del legacy**: clientes, visitas, movimientos, solicitudes, notas y equipo. Subir
+CSV → mapeo automático → preview con avisos → importar → deshacer.
+
+**Importar el equipo crea fichas, no accesos.** Cada persona entra desactivada y
+con el hash de una contraseña aleatoria que no se guarda ni se muestra: nadie
+puede iniciar sesión hasta que el dueño la habilite desde Equipo. Una planilla de
+empleados es exactamente el archivo que más circula por WhatsApp, así que crear
+credenciales usables a partir de ella sería repartir accesos al sistema sin que
+ninguna persona lo decida. Un email repetido **nunca** pisa al usuario que ya
+existe, sea cual sea la estrategia de duplicados: el que está en la base puede
+tener permisos afinados a mano y una contraseña en uso.
+
+> Ahí apareció un bug que encontró un test: el motor trataba un email inválido
+> como aviso ("entra sin email"), pero en Equipo el email *es* la identidad. La
+> fila entraba sin él y después el executor la salteaba en silencio — una persona
+> perdida sin que figure en ningún contador. Ahora un campo `required` que no
+> parsea es error, no aviso, en email y teléfono igual que ya pasaba con fecha e
+> importe.
+
+Solicitudes y notas siguen las reglas de siempre: la solicitud se engancha al
+cliente por id de origen o nombre y se rechaza si no aparece; la nota no cuelga
+de nadie, así que se puede importar primero. Deshacer una importación de
+solicitudes **no** se lleva puestos los turnos que ya hubieran salido de ellas:
+la visita queda con `requestId` en null, no se borra.
 
 Importar el historial de visitas no es un extra: sin él, un negocio que importa
 200 clientes con abono abre Pendientes y ve 200 items venciendo hoy, porque no
@@ -180,7 +202,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 105 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 121 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -194,13 +216,10 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
-1. **Lo que le falta al importador.**
-   - **Las hojas `Users`, `Requests` y `Notes` no se pueden importar.** Es lo
-     único que falta para migrar una planilla completa del legacy.
+1. **Lo que le falta al importador.** Las seis entidades del legacy ya entran
+   (`Clients`, `Visits`, `Transactions`, `Requests`, `Notes`, `Users`).
    - Las visitas archivadas viven en hojas aparte (`Visits_2024`, etc.): se
      pueden importar de a una, pero es manual.
-   - **Notas** no se pueden importar. Es la última entidad de la lista del plan
-     y la más simple: no cuelga de nadie.
    - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
      exportar es un clic en los dos, pero xlsx directo requiere elegir una
      librería — `xlsx`/SheetJS tiene avisos de seguridad conocidos, así que la
@@ -226,7 +245,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (105) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (121) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.

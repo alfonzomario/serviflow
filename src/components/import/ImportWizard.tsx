@@ -40,7 +40,13 @@ type Mapping = {
 }
 
 type Strategy = "SKIP" | "UPDATE" | "CREATE_NEW"
-type Entity = "clients" | "visits" | "transactions"
+type Entity =
+  | "clients"
+  | "visits"
+  | "transactions"
+  | "requests"
+  | "notes"
+  | "users"
 
 const IGNORE = "__ignore__"
 
@@ -49,6 +55,9 @@ const NOUNS: Record<Entity, [string, string]> = {
   clients: ["cliente", "clientes"],
   visits: ["visita", "visitas"],
   transactions: ["movimiento", "movimientos"],
+  requests: ["solicitud", "solicitudes"],
+  notes: ["nota", "notas"],
+  users: ["persona", "personas"],
 }
 
 /** A dónde mandar al usuario cuando termina. */
@@ -56,6 +65,9 @@ const DESTINATIONS: Record<Entity, { href: string; label: string }> = {
   clients: { href: "/clients", label: "Ver los clientes" },
   visits: { href: "/agenda", label: "Ver la agenda" },
   transactions: { href: "/finance", label: "Ver finanzas" },
+  requests: { href: "/requests", label: "Ver las solicitudes" },
+  notes: { href: "/notes", label: "Ver las notas" },
+  users: { href: "/team", label: "Ver el equipo" },
 }
 
 const STRATEGIES: { value: Strategy; label: string; hint: string }[] = [
@@ -198,6 +210,14 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             {entities.data?.find((option) => option.entity === entity)?.description}
           </p>
         </div>
+
+        {entity === "users" && (
+          <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 sm:max-w-md">
+            Importar el equipo crea las <strong>fichas</strong>, no los accesos.
+            Cada persona entra desactivada y sin contraseña: nadie puede iniciar
+            sesión hasta que vos la habilites desde Equipo.
+          </p>
+        )}
 
         <div
           onDragOver={(event) => {

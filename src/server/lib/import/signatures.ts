@@ -39,7 +39,13 @@ export type ColumnSignature = {
   hint?: string;
 };
 
-export type ImportEntity = 'clients' | 'visits' | 'transactions';
+export type ImportEntity =
+  | 'clients'
+  | 'visits'
+  | 'transactions'
+  | 'requests'
+  | 'notes'
+  | 'users';
 
 export type EntityConfig = {
   label: string;
@@ -435,6 +441,137 @@ const TRANSACTION_SIGNATURES: ColumnSignature[] = [
   },
 ];
 
+/**
+ * Solicitudes: pedidos de servicio que todavía no son un turno. En la app vieja
+ * eran la bandeja de entrada, así que una migración real las trae.
+ */
+const REQUEST_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'clientExternalId',
+    label: 'ID del cliente (sistema anterior)',
+    aliases: ['id cliente', 'client id', 'codigo cliente', 'código cliente', 'id_cliente'],
+    type: 'string',
+    hint: 'Si tu planilla de clientes traía un ID, usalo: engancha exacto.',
+  },
+  {
+    field: 'clientName',
+    label: 'Cliente',
+    aliases: ['cliente', 'client', 'razon social', 'razón social', 'nombre', 'solicitante'],
+    type: 'string',
+    hint: 'Se busca por nombre entre los clientes ya importados.',
+  },
+  {
+    field: 'serviceTypes',
+    label: 'Servicios pedidos',
+    aliases: ['servicios', 'servicio', 'tipo de servicio', 'plagas', 'motivo', 'pedido'],
+    type: 'list',
+  },
+  {
+    field: 'urgency',
+    label: 'Urgencia',
+    aliases: ['urgencia', 'urgency', 'prioridad', 'priority'],
+    type: 'enum',
+    enumValues: {
+      HIGH: ['alta', 'high', 'urgente', 'muy urgente', 'critica', 'crítica'],
+      MEDIUM: ['media', 'medium', 'normal', 'media alta'],
+      LOW: ['baja', 'low', 'sin apuro', 'cuando se pueda'],
+    },
+    hint: 'Si no se mapea, todo entra como media.',
+  },
+  {
+    field: 'status',
+    label: 'Estado',
+    aliases: ['estado', 'status', 'situacion', 'situación'],
+    type: 'enum',
+    enumValues: {
+      PENDING: ['pendiente', 'pending', 'abierta', 'nueva', 'sin agendar'],
+      SCHEDULED: ['agendada', 'scheduled', 'programada', 'con turno'],
+      CLOSED: ['cerrada', 'closed', 'resuelta', 'terminada', 'anulada'],
+    },
+    hint: 'Si no se mapea, todo entra como pendiente.',
+  },
+  {
+    field: 'comment',
+    label: 'Comentario',
+    aliases: ['comentario', 'comment', 'detalle', 'observaciones', 'notas', 'descripcion', 'descripción'],
+    type: 'string',
+  },
+  {
+    field: 'createdAt',
+    label: 'Fecha del pedido',
+    aliases: ['fecha', 'date', 'fecha pedido', 'fecha solicitud', 'creada', 'alta'],
+    type: 'date',
+    hint: 'Si no viene, se usa la fecha de la importación.',
+  },
+];
+
+/**
+ * Notas sueltas. Es la entidad más simple: no cuelga de nadie, así que se puede
+ * importar en cualquier orden.
+ */
+const NOTE_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'content',
+    label: 'Contenido',
+    aliases: ['contenido', 'content', 'nota', 'note', 'texto', 'detalle', 'observacion', 'observación', 'comentario'],
+    type: 'string',
+    required: true,
+  },
+  {
+    field: 'reminderAt',
+    label: 'Recordatorio',
+    aliases: ['recordatorio', 'reminder', 'avisar', 'fecha recordatorio', 'vencimiento', 'alarma'],
+    type: 'date',
+    hint: 'Opcional. La nota aparece como vencida a partir de esa fecha.',
+  },
+  {
+    field: 'createdAt',
+    label: 'Fecha',
+    aliases: ['fecha', 'date', 'creada', 'alta', 'dia', 'día'],
+    type: 'date',
+    hint: 'Si no viene, se usa la fecha de la importación.',
+  },
+];
+
+/**
+ * Usuarios del equipo.
+ *
+ * Importar personas **no** es importar accesos: acá se crean las fichas, no las
+ * credenciales. Cada usuario entra desactivado y con una contraseña aleatoria
+ * que nadie conoce — ni siquiera queda en el archivo. El dueño los activa y les
+ * pone contraseña desde Equipo. Crear cuentas que puedan iniciar sesión a partir
+ * de una planilla sería regalar accesos sin que nadie lo decida.
+ */
+const USER_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'name',
+    label: 'Nombre',
+    aliases: ['nombre', 'name', 'apellido y nombre', 'nombre y apellido', 'usuario', 'operario', 'tecnico', 'técnico', 'empleado'],
+    type: 'string',
+    required: true,
+  },
+  {
+    field: 'email',
+    label: 'Email',
+    aliases: ['email', 'correo', 'e-mail', 'mail', 'correo electronico', 'correo electrónico', 'usuario'],
+    type: 'email',
+    required: true,
+    hint: 'Es la identidad del usuario dentro del negocio: no puede repetirse.',
+  },
+  {
+    field: 'role',
+    label: 'Rol',
+    aliases: ['rol', 'role', 'perfil', 'permiso', 'permisos', 'cargo', 'puesto'],
+    type: 'enum',
+    enumValues: {
+      OWNER: ['owner', 'dueño', 'dueno', 'titular', 'propietario'],
+      ADMIN: ['admin', 'administrador', 'administrativo', 'encargado', 'supervisor'],
+      OPERATOR: ['operador', 'operator', 'operario', 'tecnico', 'técnico', 'empleado', 'campo'],
+    },
+    hint: 'Si no se mapea, todos entran como operadores.',
+  },
+];
+
 export const ENTITIES: Record<ImportEntity, EntityConfig> = {
   clients: {
     label: 'Clientes',
@@ -462,12 +599,39 @@ export const ENTITIES: Record<ImportEntity, EntityConfig> = {
     clientNameField: 'clientName',
     clientRequired: false,
   },
+  requests: {
+    label: 'Solicitudes',
+    description:
+      'Pedidos que todavía no tienen turno. Importalas después de los clientes: cada una se engancha por nombre o por ID.',
+    fields: REQUEST_SIGNATURES,
+    dedupeFields: ['clientExternalId', 'clientName', 'createdAt', 'comment'],
+    clientNameField: 'clientName',
+    clientExternalIdField: 'clientExternalId',
+    clientRequired: true,
+    requireOneOf: [['clientExternalId', 'clientName']],
+  },
+  notes: {
+    label: 'Notas',
+    description: 'Apuntes sueltos del negocio. No dependen de nada, se pueden importar primero.',
+    fields: NOTE_SIGNATURES,
+    dedupeFields: ['content', 'createdAt'],
+  },
+  users: {
+    label: 'Equipo',
+    description:
+      'Las personas que trabajan en el negocio. Entran desactivadas y sin contraseña: vos las habilitás desde Equipo.',
+    fields: USER_SIGNATURES,
+    dedupeFields: ['email'],
+  },
 };
 
 export const ENTITY_LABELS: Record<ImportEntity, string> = {
   clients: ENTITIES.clients.label,
   visits: ENTITIES.visits.label,
   transactions: ENTITIES.transactions.label,
+  requests: ENTITIES.requests.label,
+  notes: ENTITIES.notes.label,
+  users: ENTITIES.users.label,
 };
 
 export const configFor = (entity: ImportEntity): EntityConfig => ENTITIES[entity];

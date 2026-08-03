@@ -484,7 +484,12 @@ export const validateRows = ({
 
         case 'email': {
           if (!EMAIL_RE.test(raw)) {
-            warn('No parece un email válido. Se importa sin email.');
+            // Donde el email es obligatorio no es un dato de contacto sino la
+            // identidad de la fila (un usuario del equipo). Dejarlo pasar como
+            // aviso crearía una ficha sin forma de activarse, o —peor— haría
+            // que el executor la saltee sin que figure en ningún lado.
+            if (signature.required) fail('No parece un email válido');
+            else warn('No parece un email válido. Se importa sin email.');
             break;
           }
           values[signature.field] = raw.toLowerCase();
@@ -494,7 +499,8 @@ export const validateRows = ({
         case 'phone': {
           const phone = normalisePhone(raw);
           if (!phone) {
-            warn('No parece un teléfono. Se importa sin teléfono.');
+            if (signature.required) fail('No parece un teléfono');
+            else warn('No parece un teléfono. Se importa sin teléfono.');
             break;
           }
           values[signature.field] = phone;

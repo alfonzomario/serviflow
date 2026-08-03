@@ -164,6 +164,9 @@ model User {
   isActive        Boolean  @default(true) @map("is_active")
   sessionVersion  Int      @default(1) @map("session_version")
   lastLoginAt     DateTime? @map("last_login_at")
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId        String?  @map("import_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -176,6 +179,7 @@ model User {
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
+  @@index([tenantId, importId])
   @@map("users")
 }
 
@@ -330,6 +334,9 @@ model ServiceRequest {
   urgency       RequestUrgency @default(MEDIUM)
   status        RequestStatus @default(PENDING)
   comment       String?
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId      String?  @map("import_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -339,6 +346,7 @@ model ServiceRequest {
   jobs    Job[]
 
   @@index([tenantId, status])
+  @@index([tenantId, importId])
   @@map("service_requests")
 }
 
@@ -375,6 +383,9 @@ model Note {
   content         String
   reminderAt      DateTime? @map("reminder_at")
   reminderSentAt  DateTime? @map("reminder_sent_at")
+  /// De qué importación salió esta fila. Permite deshacer un lote entero sin
+  /// tocar lo que se cargó a mano.
+  importId        String?  @map("import_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
   deletedAt       DateTime? @map("deleted_at")
 
@@ -382,6 +393,7 @@ model Note {
   createdBy User   @relation(fields: [createdById], references: [id])
 
   @@index([tenantId, reminderAt])
+  @@index([tenantId, importId])
   @@map("notes")
 }
 

@@ -868,3 +868,173 @@ describe('migración desde la app vieja', () => {
     expect(result.unmatchedNames).toEqual(['cli-9999'])
   })
 })
+
+describe('solicitudes', () => {
+  const build = (csv: string) => {
+    const { headers, rows } = parseDelimited(csv)
+    return validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'requests'),
+      entity: 'requests',
+    })
+  }
+
+  it('reconoce los encabezados de una bandeja de pedidos', () => {
+    const mappings = autoMapColumns(
+      ['Cliente', 'Servicios', 'Urgencia', 'Estado', 'Comentario', 'Fecha'],
+      'requests'
+    )
+
+    expect(mapOf(mappings)).toEqual({
+      Cliente: 'clientName',
+      Servicios: 'serviceTypes',
+      Urgencia: 'urgency',
+      Estado: 'status',
+      Comentario: 'comment',
+      Fecha: 'createdAt',
+    })
+  })
+
+  it('acepta el cliente por nombre o por id, pero exige alguno', () => {
+    expect(build('Comentario\nVinieron por hormigas').missingRequired.length)
+      .toBeGreaterThan(0)
+    expect(build('Cliente,Comentario\nAna,Hormigas').missingRequired).toEqual([])
+    expect(build('ID cliente,Comentario\ncli-1,Hormigas').missingRequired).toEqual([])
+  })
+
+  it('normaliza la urgencia como la escribe cada uno', () => {
+    const result = build(
+      'Cliente,Urgencia\nAna,urgente\nBeto,normal\nCeci,sin apuro'
+    )
+
+    expect(result.validRows.map((row) => row.values.urgency)).toEqual([
+      'HIGH',
+      'MEDIUM',
+      'LOW',
+    ])
+  })
+
+  it('normaliza el estado', () => {
+    const result = build('Cliente,Estado\nAna,abierta\nBeto,con turno\nCeci,resuelta')
+
+    expect(result.validRows.map((row) => row.values.status)).toEqual([
+      'PENDING',
+      'SCHEDULED',
+      'CLOSED',
+    ])
+  })
+
+  it('parte la lista de servicios pedidos', () => {
+    const result = build('Cliente,Servicios\nAna,"Cucarachas; Roedores"')
+
+    expect(result.validRows[0].values.serviceTypes).toEqual(['Cucarachas', 'Roedores'])
+  })
+
+  it('no descarta la fila si no viene la fecha', () => {
+    // Sin fecha se usa la de la importación; perder el pedido sería peor.
+    const result = build('Cliente,Comentario\nAna,Llamó por hormigas')
+
+    expect(result.counts.valid).toBe(1)
+    expect(result.validRows[0].values).not.toHaveProperty('createdAt')
+  })
+})
+
+describe('notas', () => {
+  const build = (csv: string) => {
+    const { headers, rows } = parseDelimited(csv)
+    return validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'notes'),
+      entity: 'notes',
+    })
+  }
+
+  it('reconoce encabezados de una hoja de apuntes', () => {
+    const mappings = autoMapColumns(['Nota', 'Recordatorio', 'Fecha'], 'notes')
+
+    expect(mapOf(mappings)).toEqual({
+      Nota: 'content',
+      Recordatorio: 'reminderAt',
+      Fecha: 'createdAt',
+    })
+  })
+
+  it('exige el contenido', () => {
+    expect(build('Fecha\n01/03/2026').missingRequired).toEqual(['Contenido'])
+  })
+
+  it('rechaza la fila con contenido vacío', () => {
+    const result = build('Nota,Fecha\n,01/03/2026')
+
+    expect(result.counts.errors).toBe(1)
+    expect(result.validRows).toHaveLength(0)
+  })
+
+  it('un recordatorio ilegible es un aviso, no un rechazo', () => {
+    const result = build('Nota,Recordatorio\nLlamar a Ana,cuando se pueda')
+
+    expect(result.counts.valid).toBe(1)
+    expect(result.validRows[0].values).not.toHaveProperty('reminderAt')
+    expect(result.issues[0].type).toBe('warning')
+  })
+
+  it('conserva saltos de línea dentro de una nota', () => {
+    const result = build('Nota\n"Piso 3\nTimbre roto"')
+
+    expect(result.validRows[0].values.content).toBe('Piso 3\nTimbre roto')
+  })
+})
+
+describe('equipo', () => {
+  const build = (csv: string) => {
+    const { headers, rows } = parseDelimited(csv)
+    return validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'users'),
+      entity: 'users',
+    })
+  }
+
+  it('reconoce encabezados de una lista de empleados', () => {
+    const mappings = autoMapColumns(['Nombre', 'Email', 'Rol'], 'users')
+
+    expect(mapOf(mappings)).toEqual({
+      Nombre: 'name',
+      Email: 'email',
+      Rol: 'role',
+    })
+  })
+
+  it('exige nombre y email', () => {
+    expect(build('Rol\noperario').missingRequired).toEqual(
+      expect.arrayContaining(['Nombre', 'Email'])
+    )
+  })
+
+  it('normaliza los roles como los escribe cada uno', () => {
+    const result = build(
+      'Nombre,Email,Rol\nAna,ana@t.com,dueño\nBeto,beto@t.com,encargado\nCeci,ceci@t.com,técnico'
+    )
+
+    expect(result.validRows.map((row) => row.values.role)).toEqual([
+      'OWNER',
+      'ADMIN',
+      'OPERATOR',
+    ])
+  })
+
+  it('rechaza la fila con email inválido en vez de avisar', () => {
+    // Acá el email no es un dato de contacto: es la identidad del usuario.
+    // Importar a alguien sin email dejaría una ficha que nadie puede activar.
+    const result = build('Nombre,Email\nAna,ana@@roto')
+
+    expect(result.counts.errors).toBe(1)
+    expect(result.validRows).toHaveLength(0)
+  })
+
+  it('marca como repetido el mismo email dos veces', () => {
+    const result = build('Nombre,Email\nAna,ana@t.com\nAna R,ana@t.com')
+
+    expect(result.issues.some((issue) => issue.message.includes('fila 1'))).toBe(true)
+  })
+})

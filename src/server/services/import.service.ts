@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { db } from '../db';
 import { tenantWhere, tenantOnly } from '../lib/tenant-context';
 import { recordAudit } from './audit.service';
@@ -538,6 +539,353 @@ export const executeTransactionImport = async ({
   return outcome;
 };
 
+export const executeRequestImport = async ({
+  tenantId,
+  userId,
+  rows,
+  strategy,
+  fileName,
+  columnMapping,
+  totalRows,
+  errorRows,
+}: {
+  tenantId: string;
+  userId: string;
+  rows: ResolvedRow[];
+  strategy: DuplicateStrategy;
+  fileName: string | null;
+  columnMapping: Prisma.InputJsonValue;
+  totalRows: number;
+  errorRows: number;
+}): Promise<ImportOutcome> => {
+  // Una solicitud es "la misma" si es del mismo cliente, del mismo día y con el
+  // mismo comentario. Dos pedidos iguales el mismo día son casi siempre la misma
+  // fila importada dos veces, no dos llamados distintos.
+  const keyOf = (clientId: string, createdAt: Date, comment: string | null) =>
+    `${clientId}|${createdAt.toISOString().slice(0, 10)}|${(comment ?? '').trim().toLowerCase()}`;
+
+  const existing = await db.serviceRequest.findMany({
+    where: tenantOnly(tenantId),
+    select: { clientId: true, createdAt: true, comment: true },
+  });
+
+  const outcome = await db.$transaction(async (tx) => {
+    const importId = crypto.randomUUID();
+    let imported = 0;
+    let skipped = 0;
+    const errors: { row: number; message: string }[] = [];
+    const seen = new Set(
+      existing.map((req) => keyOf(req.clientId, req.createdAt, req.comment))
+    );
+
+    for (const row of rows) {
+      const createdAt = (row.values.createdAt as Date | undefined) ?? new Date();
+      const comment = (row.values.comment as string | undefined) ?? null;
+      const key = keyOf(row.clientId, createdAt, comment);
+
+      if (seen.has(key) && strategy !== 'CREATE_NEW') {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await tx.serviceRequest.create({
+          data: {
+            tenantId,
+            importId,
+            clientId: row.clientId,
+            // Se guarda el nombre tal como venía en el archivo: la solicitud
+            // sigue leyéndose bien aunque después renombren al cliente.
+            clientName: (row.values.clientName as string | undefined) ?? null,
+            serviceTypes: (row.values.serviceTypes as string[] | undefined) ?? [],
+            urgency:
+              (row.values.urgency as 'LOW' | 'MEDIUM' | 'HIGH' | undefined) ?? 'MEDIUM',
+            status:
+              (row.values.status as 'PENDING' | 'SCHEDULED' | 'CLOSED' | undefined) ??
+              'PENDING',
+            comment,
+            createdAt,
+          },
+        });
+        seen.add(key);
+        imported++;
+      } catch (error) {
+        throw rowError(row.row, error);
+      }
+    }
+
+    await tx.importHistory.create({
+      data: {
+        id: importId,
+        tenantId,
+        userId,
+        entityType: 'requests',
+        fileName,
+        fileType: 'csv',
+        totalRows,
+        importedRows: imported,
+        skippedRows: skipped,
+        errorRows: errorRows + errors.length,
+        errors: errors as unknown as Prisma.InputJsonValue,
+        columnMapping,
+        duplicateStrategy: strategy,
+        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+  });
+
+  await recordAudit({
+    tenantId,
+    userId,
+    action: 'IMPORT',
+    entityType: 'request',
+    entityId: outcome.importId,
+    changes: {
+      importados: outcome.imported,
+      omitidos: outcome.skipped,
+      fallidos: outcome.failed,
+    },
+  });
+
+  return outcome;
+};
+
+export const executeNoteImport = async ({
+  tenantId,
+  userId,
+  rows,
+  strategy,
+  fileName,
+  columnMapping,
+  totalRows,
+  errorRows,
+}: {
+  tenantId: string;
+  userId: string;
+  rows: PreparedRow[];
+  strategy: DuplicateStrategy;
+  fileName: string | null;
+  columnMapping: Prisma.InputJsonValue;
+  totalRows: number;
+  errorRows: number;
+}): Promise<ImportOutcome> => {
+  const keyOf = (content: string, createdAt: Date) =>
+    `${content.trim().toLowerCase()}|${createdAt.toISOString().slice(0, 10)}`;
+
+  const existing = await db.note.findMany({
+    where: tenantWhere(tenantId),
+    select: { content: true, createdAt: true },
+  });
+
+  const outcome = await db.$transaction(async (tx) => {
+    const importId = crypto.randomUUID();
+    let imported = 0;
+    let skipped = 0;
+    const errors: { row: number; message: string }[] = [];
+    const seen = new Set(existing.map((note) => keyOf(note.content, note.createdAt)));
+
+    for (const row of rows) {
+      const content = row.values.content as string | undefined;
+      if (!content) continue;
+
+      const createdAt = (row.values.createdAt as Date | undefined) ?? new Date();
+      const key = keyOf(content, createdAt);
+
+      if (seen.has(key) && strategy !== 'CREATE_NEW') {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await tx.note.create({
+          data: {
+            tenantId,
+            importId,
+            // La nota queda a nombre de quien hizo la importación: el autor
+            // original de la planilla no es necesariamente un usuario nuestro.
+            createdById: userId,
+            content,
+            reminderAt: (row.values.reminderAt as Date | undefined) ?? null,
+            createdAt,
+          },
+        });
+        seen.add(key);
+        imported++;
+      } catch (error) {
+        throw rowError(row.row, error);
+      }
+    }
+
+    await tx.importHistory.create({
+      data: {
+        id: importId,
+        tenantId,
+        userId,
+        entityType: 'notes',
+        fileName,
+        fileType: 'csv',
+        totalRows,
+        importedRows: imported,
+        skippedRows: skipped,
+        errorRows: errorRows + errors.length,
+        errors: errors as unknown as Prisma.InputJsonValue,
+        columnMapping,
+        duplicateStrategy: strategy,
+        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+  });
+
+  await recordAudit({
+    tenantId,
+    userId,
+    action: 'IMPORT',
+    entityType: 'note',
+    entityId: outcome.importId,
+    changes: {
+      importados: outcome.imported,
+      omitidos: outcome.skipped,
+      fallidos: outcome.failed,
+    },
+  });
+
+  return outcome;
+};
+
+/**
+ * Importa las fichas del equipo — **no** sus accesos.
+ *
+ * Cada usuario entra `isActive: false` y con un hash de una contraseña aleatoria
+ * de 32 bytes que no se guarda en ningún lado ni se muestra. Nadie puede entrar
+ * con esas cuentas hasta que el dueño las active y les asigne contraseña desde
+ * Equipo. Crear credenciales usables a partir de una planilla sería repartir
+ * accesos al sistema sin que ninguna persona lo haya decidido, y una planilla de
+ * empleados es exactamente el archivo que más circula por WhatsApp.
+ *
+ * El email es la identidad dentro del tenant (`@@unique([tenantId, email])`), así
+ * que un repetido se omite en vez de pisar al usuario que ya existe: el que está
+ * en la base puede tener permisos afinados a mano.
+ */
+export const executeUserImport = async ({
+  tenantId,
+  userId,
+  rows,
+  strategy,
+  fileName,
+  columnMapping,
+  totalRows,
+  errorRows,
+}: {
+  tenantId: string;
+  userId: string;
+  rows: PreparedRow[];
+  strategy: DuplicateStrategy;
+  fileName: string | null;
+  columnMapping: Prisma.InputJsonValue;
+  totalRows: number;
+  errorRows: number;
+}): Promise<ImportOutcome> => {
+  const existing = await db.user.findMany({
+    where: { tenantId },
+    select: { email: true },
+  });
+
+  const outcome = await db.$transaction(async (tx) => {
+    const importId = crypto.randomUUID();
+    let imported = 0;
+    let skipped = 0;
+    const errors: { row: number; message: string }[] = [];
+    const seen = new Set(existing.map((user) => user.email.toLowerCase()));
+
+    for (const row of rows) {
+      const email = (row.values.email as string | undefined)?.toLowerCase();
+      const name = row.values.name as string | undefined;
+      if (!email || !name) continue;
+
+      // Un email repetido nunca se pisa, sea cual sea la estrategia: el usuario
+      // que ya existe puede tener permisos ajustados a mano y una contraseña en
+      // uso. Sobrescribirlo dejaría a alguien afuera del sistema.
+      if (seen.has(email)) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await tx.user.create({
+          data: {
+            tenantId,
+            importId,
+            email,
+            name,
+            role: (row.values.role as 'OWNER' | 'ADMIN' | 'OPERATOR' | undefined) ?? 'OPERATOR',
+            // Contraseña aleatoria que no se guarda ni se muestra: la cuenta no
+            // es usable hasta que el dueño le ponga una desde Equipo.
+            passwordHash: await bcrypt.hash(crypto.randomUUID() + crypto.randomUUID(), 10),
+            isActive: false,
+          },
+        });
+        seen.add(email);
+        imported++;
+      } catch (error) {
+        throw rowError(row.row, error);
+      }
+    }
+
+    await tx.importHistory.create({
+      data: {
+        id: importId,
+        tenantId,
+        userId,
+        entityType: 'users',
+        fileName,
+        fileType: 'csv',
+        totalRows,
+        importedRows: imported,
+        skippedRows: skipped,
+        errorRows: errorRows + errors.length,
+        errors: errors as unknown as Prisma.InputJsonValue,
+        columnMapping,
+        duplicateStrategy: strategy,
+        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+  });
+
+  await recordAudit({
+    tenantId,
+    userId,
+    action: 'IMPORT',
+    entityType: 'user',
+    entityId: outcome.importId,
+    changes: {
+      importados: outcome.imported,
+      omitidos: outcome.skipped,
+      fallidos: outcome.failed,
+    },
+  });
+
+  return outcome;
+};
+
+/** Cómo se llama cada entidad en el registro de auditoría (singular). */
+const ROLLBACK_AUDIT_ENTITY: Record<string, string> = {
+  visits: 'visit',
+  transactions: 'transaction',
+  requests: 'request',
+  notes: 'note',
+  users: 'user',
+  clients: 'client',
+};
+
 /**
  * Deshace una importación: borra lógicamente solo las filas que creó.
  *
@@ -572,6 +920,52 @@ export const rollbackImport = async ({
       await tx.job.updateMany({ where, data });
     } else if (record.entityType === 'transactions') {
       deleted = await tx.transaction.updateMany({ where, data });
+    } else if (record.entityType === 'notes') {
+      deleted = await tx.note.updateMany({ where, data });
+    } else if (record.entityType === 'requests') {
+      // ServiceRequest no tiene borrado lógico, así que acá se borra de verdad.
+      // Es seguro: solo se tocan las filas de este lote, y una solicitud que ya
+      // generó un turno no pierde el turno — la visita queda con `requestId` en
+      // null, no se borra.
+      await tx.visit.updateMany({
+        where: { ...tenantWhere(tenantId), request: { importId } },
+        data: { requestId: null },
+      });
+      await tx.job.updateMany({
+        where: { ...tenantWhere(tenantId), request: { importId } },
+        data: { requestId: null },
+      });
+      deleted = await tx.serviceRequest.deleteMany({ where: { tenantId, importId } });
+    } else if (record.entityType === 'users') {
+      // Tampoco tiene borrado lógico. Se borran solo los que nunca se usaron; si
+      // alguno ya tiene visitas asignadas o notas, se desactiva en vez de
+      // borrarse, porque borrarlo se llevaría puesto ese historial.
+      const imported = await tx.user.findMany({
+        where: { tenantId, importId },
+        select: {
+          id: true,
+          _count: { select: { assignedVisits: true, createdNotes: true, auditLogs: true } },
+        },
+      });
+
+      const unused = imported
+        .filter(
+          (user) =>
+            user._count.assignedVisits === 0 &&
+            user._count.createdNotes === 0 &&
+            user._count.auditLogs === 0
+        )
+        .map((user) => user.id);
+
+      const inUse = imported.filter((user) => !unused.includes(user.id)).map((u) => u.id);
+      if (inUse.length > 0) {
+        await tx.user.updateMany({
+          where: { id: { in: inUse } },
+          data: { isActive: false, importId: null },
+        });
+      }
+
+      deleted = await tx.user.deleteMany({ where: { id: { in: unused } } });
     } else {
       // Se libera el id de origen junto con el borrado: la constraint única lo
       // sigue reservando aunque la fila esté eliminada, y reintentar la misma
@@ -594,12 +988,7 @@ export const rollbackImport = async ({
     tenantId,
     userId,
     action: 'IMPORT',
-    entityType:
-      record.entityType === 'visits'
-        ? 'visit'
-        : record.entityType === 'transactions'
-          ? 'transaction'
-          : 'client',
+    entityType: ROLLBACK_AUDIT_ENTITY[record.entityType] ?? 'client',
     entityId: importId,
     changes: { deshecha: true, eliminados: result.deleted },
   });

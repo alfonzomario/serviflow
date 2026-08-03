@@ -10,11 +10,19 @@ import {
 } from '../../services/import';
 import {
   executeClientImport,
+  executeNoteImport,
+  executeRequestImport,
   executeTransactionImport,
+  executeUserImport,
   executeVisitImport,
   rollbackImport,
 } from '../../services/import.service';
-import { configFor, ENTITIES, signaturesFor } from '../../lib/import/signatures';
+import {
+  configFor,
+  ENTITIES,
+  signaturesFor,
+  type ImportEntity,
+} from '../../lib/import/signatures';
 import { TRPCError } from '@trpc/server';
 import { db } from '../../db';
 import type { Prisma } from '@prisma/client';
@@ -30,7 +38,14 @@ import type { Prisma } from '@prisma/client';
  * es una operación de dueño, no algo que haga un operador.
  */
 
-const EntityEnum = z.enum(['clients', 'visits', 'transactions']);
+const EntityEnum = z.enum([
+  'clients',
+  'visits',
+  'transactions',
+  'requests',
+  'notes',
+  'users',
+]);
 const StrategyEnum = z.enum(['SKIP', 'UPDATE', 'CREATE_NEW']);
 
 const MappingSchema = z.object({
@@ -50,7 +65,7 @@ const MAX_CONTENT = 5_000_000;
  */
 const resolveForEntity = async (
   tenantId: string,
-  entity: 'clients' | 'visits' | 'transactions',
+  entity: ImportEntity,
   rows: PreparedRow[]
 ) => {
   const config = configFor(entity);
@@ -247,6 +262,44 @@ export const importRouter = router({
             ...(resolution?.resolved ?? []),
             ...(resolution?.unmatched ?? []).map((row) => ({ ...row, clientId: null })),
           ],
+          errorRows: result.counts.errors,
+        });
+      }
+
+      if (input.entity === 'requests') {
+        const resolution = await resolveForEntity(
+          ctx.tenantId,
+          'requests',
+          result.validRows
+        );
+
+        if (!resolution || resolution.resolved.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'Ninguna fila coincide con un cliente existente. Importá primero los clientes.',
+          });
+        }
+
+        return executeRequestImport({
+          ...common,
+          rows: resolution.resolved,
+          errorRows: result.counts.errors + resolution.unmatched.length,
+        });
+      }
+
+      if (input.entity === 'notes') {
+        return executeNoteImport({
+          ...common,
+          rows: result.validRows,
+          errorRows: result.counts.errors,
+        });
+      }
+
+      if (input.entity === 'users') {
+        return executeUserImport({
+          ...common,
+          rows: result.validRows,
           errorRows: result.counts.errors,
         });
       }
