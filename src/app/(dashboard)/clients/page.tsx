@@ -87,8 +87,8 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground">
+        <h1 className="text-2xl font-extrabold tracking-tight">Clientes</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
             {data ? `${data.total} cliente${data.total === 1 ? "" : "s"}` : "Cargando…"}
           </p>
         </div>
@@ -98,7 +98,7 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      <Card className="p-4">
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/0.4)] p-4 backdrop-blur-sm">
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -130,9 +130,9 @@ export default function ClientsPage() {
             </SelectContent>
           </Select>
         </div>
-      </Card>
+      </div>
 
-      <Card>
+      <div className="rounded-2xl border border-[hsl(var(--border))] overflow-hidden shadow-lg bg-[hsl(var(--card))]">
         {isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, index) => (
@@ -153,23 +153,26 @@ export default function ClientsPage() {
           />
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Contacto</TableHead>
-                <TableHead>Servicios</TableHead>
-                <TableHead>Vínculo</TableHead>
-                <TableHead className="text-right">Visitas</TableHead>
-                <TableHead className="w-24" />
-              </TableRow>
+            <TableHeader className="bg-[hsl(var(--secondary)/0.5)]">
+              <TableRow className="border-b border-[hsl(var(--border))] hover:bg-transparent">
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Cliente</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Contacto</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Servicios</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Vínculo</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Visitas</TableHead>
+                <TableHead className="w-24" /></TableRow>
             </TableHeader>
             <TableBody>
               {items.map((client) => (
-                <TableRow key={client.id}>
+                <TableRow
+                  key={client.id}
+                  className="border-b border-[hsl(var(--border)/0.5)] last:border-0
+                    hover:bg-[hsl(var(--secondary)/0.4)] transition-colors cursor-pointer"
+                >
                   <TableCell>
                     <Link
                       href={`/clients/${client.id}`}
-                      className="font-medium hover:text-primary hover:underline"
+                      className="font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors duration-150"
                     >
                       {client.name}
                     </Link>
@@ -194,12 +197,13 @@ export default function ClientsPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {client.serviceTypes.slice(0, 2).map((type) => (
-                        <Badge key={type} variant="secondary" className="font-normal">
+                        <Badge key={type} variant="secondary"
+                          className="font-medium text-[10px] rounded-full bg-[hsl(var(--secondary))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))]">
                           {type}
                         </Badge>
                       ))}
                       {client.serviceTypes.length > 2 && (
-                        <Badge variant="outline" className="font-normal">
+                        <Badge variant="outline" className="font-normal text-[10px] rounded-full border-[hsl(var(--border))]">
                           +{client.serviceTypes.length - 2}
                         </Badge>
                       )}
@@ -210,14 +214,14 @@ export default function ClientsPage() {
                       variant="outline"
                       className={
                         client.relationshipType === "CONTRACT"
-                          ? "border-none bg-indigo-500/10 text-indigo-500"
-                          : "border-none bg-slate-500/10 text-slate-500"
+                          ? "border-none rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/20"
+                          : "border-none rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-slate-500/15 text-slate-400 border border-slate-500/20"
                       }
                     >
                       {client.relationshipType === "CONTRACT" ? "Contrato" : "Ocasional"}
                     </Badge>
                     {client.status === "INACTIVE" && (
-                      <Badge variant="outline" className="ml-1 border-none bg-red-500/10 text-red-500">
+                      <Badge variant="outline" className="ml-1 border-none rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
                         Inactivo
                       </Badge>
                     )}
@@ -232,13 +236,14 @@ export default function ClientsPage() {
                         size="icon"
                         onClick={() => openEdit(client.id)}
                         aria-label={`Editar ${client.name}`}
+                        className="rounded-lg hover:bg-blue-500/10 hover:text-blue-400 transition-all"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="rounded-lg text-destructive hover:bg-red-500/10 hover:text-red-400 transition-all"
                         aria-label={`Eliminar ${client.name}`}
                         onClick={() => setDeleting({ id: client.id, name: client.name })}
                       >
@@ -251,7 +256,7 @@ export default function ClientsPage() {
             </TableBody>
           </Table>
         )}
-      </Card>
+      </div>
 
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">

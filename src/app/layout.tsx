@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Plus_Jakarta_Sans } from "next/font/google"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages } from "next-intl/server"
 import { SessionProvider } from "next-auth/react"
@@ -7,7 +7,11 @@ import { Toaster } from "sonner"
 import { TRPCProvider } from "@/lib/trpc"
 import "./globals.css"
 
-const inter = Inter({ subsets: ["latin"] })
+const font = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700", "800"],
+})
 
 export const metadata: Metadata = {
   title: "ServiFlow",
@@ -23,8 +27,8 @@ export default async function RootLayout({
   const messages = await getMessages()
 
   return (
-    <html lang={locale}>
-      <body className={inter.className}>
+    <html lang={locale} className="dark">
+      <body className={`${font.variable} font-sans antialiased`}>
         <SessionProvider>
           <TRPCProvider>
             <NextIntlClientProvider locale={locale} messages={messages}>

@@ -101,8 +101,8 @@ export default function FinancePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Finanzas</h1>
-          <p className="text-muted-foreground">Ingresos y egresos del negocio.</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">Finanzas</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Ingresos y egresos del negocio.</p>
         </div>
         <Button onClick={openNew}>
           <Plus className="mr-2 h-4 w-4" />
@@ -136,64 +136,70 @@ export default function FinancePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
+        <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 shadow-xl shadow-emerald-500/10 hover:scale-[1.01] transition-transform">
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Ingresos</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Ingresos</p>
+              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
                 {summary ? formatCurrency(summary.income) : "—"}
               </p>
             </div>
-            <ArrowUpCircle className="h-8 w-8 text-emerald-500" />
+            <div className="p-3 rounded-xl bg-emerald-500/15 shadow-lg shadow-emerald-500/20">
+              <ArrowUpCircle className="h-6 w-6 text-emerald-400" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-500/5">
+        <Card className="border-red-500/25 bg-gradient-to-br from-red-500/20 to-red-600/5 shadow-xl shadow-red-500/10 hover:scale-[1.01] transition-transform">
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Egresos</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Egresos</p>
+              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
                 {summary ? formatCurrency(summary.expense) : "—"}
               </p>
             </div>
-            <ArrowDownCircle className="h-8 w-8 text-red-500" />
+            <div className="p-3 rounded-xl bg-red-500/15 shadow-lg shadow-red-500/20">
+              <ArrowDownCircle className="h-6 w-6 text-red-400" />
+            </div>
           </CardContent>
         </Card>
 
         <Card
           className={
             summary && summary.balance < 0
-              ? "border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-500/5"
-              : "border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5"
+              ? "border-red-500/25 bg-gradient-to-br from-red-500/20 to-red-600/5 shadow-xl shadow-red-500/10 hover:scale-[1.01] transition-transform"
+              : "border-indigo-500/25 bg-gradient-to-br from-indigo-500/20 to-blue-600/5 shadow-xl shadow-indigo-500/10 hover:scale-[1.01] transition-transform"
           }
         >
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Balance</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Balance</p>
+              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
                 {summary ? formatCurrency(summary.balance) : "—"}
               </p>
             </div>
-            <Wallet className="h-8 w-8 text-primary" />
+            <div className="p-3 rounded-xl bg-[hsl(var(--primary)/0.15)] shadow-lg shadow-indigo-500/20">
+              <Wallet className="h-6 w-6 text-indigo-400" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {monthly.data && monthly.data.length > 0 && (
-        <Card className="p-6">
-          <h2 className="mb-4 font-semibold">Últimos 6 meses</h2>
+          <Card className="p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
+          <h2 className="mb-4 font-bold text-sm uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Últimos 6 meses</h2>
           <div className="flex h-48 gap-4">
             {monthly.data.map((entry) => (
               <div key={entry.month} className="flex flex-1 flex-col gap-1">
                 {/* min-h-0 lets the bar track shrink so percentage heights resolve */}
                 <div className="flex min-h-0 flex-1 items-end justify-center gap-1">
                   <div
-                    className="w-1/2 rounded-t bg-emerald-500/60"
+                    className="w-1/2 rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400"
                     style={{ height: `${Math.max(2, (entry.income / maxBar) * 100)}%` }}
                     title={`Ingresos: ${formatCurrency(entry.income)}`}
                   />
                   <div
-                    className="w-1/2 rounded-t bg-red-500/60"
+                    className="w-1/2 rounded-t-md bg-gradient-to-t from-red-600 to-red-400"
                     style={{ height: `${Math.max(2, (entry.expense / maxBar) * 100)}%` }}
                     title={`Egresos: ${formatCurrency(entry.expense)}`}
                   />
@@ -215,11 +221,11 @@ export default function FinancePage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-lg">
         {isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="h-12 animate-pulse rounded-md bg-muted" />
+              <div key={index} className="h-12 animate-pulse rounded-xl bg-[hsl(var(--secondary))]" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -232,12 +238,12 @@ export default function FinancePage() {
           />
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Concepto</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Monto</TableHead>
+            <TableHeader className="bg-[hsl(var(--secondary)/0.5)]">
+              <TableRow className="border-b border-[hsl(var(--border))] hover:bg-transparent">
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Fecha</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Concepto</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Cliente</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Monto</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -245,7 +251,12 @@ export default function FinancePage() {
               {items.map((transaction) => {
                 const isIncome = transaction.type === "INCOME"
                 return (
-                  <TableRow key={transaction.id}>
+                  <TableRow
+                    key={transaction.id}
+                    className={`border-b border-[hsl(var(--border)/0.5)] last:border-0
+                      hover:bg-[hsl(var(--secondary)/0.4)] transition-colors
+                      ${isIncome ? "border-l-2 border-l-emerald-400/50" : "border-l-2 border-l-red-400/50"}`}
+                  >
                     <TableCell className="whitespace-nowrap text-sm">
                       {formatDateOnly(transaction.transactionDate)}
                     </TableCell>
@@ -273,8 +284,8 @@ export default function FinancePage() {
                     </TableCell>
                     <TableCell className="text-sm">{transaction.client?.name ?? "—"}</TableCell>
                     <TableCell
-                      className={`text-right font-medium tabular-nums ${
-                        isIncome ? "text-emerald-600" : "text-red-600"
+                      className={`text-right font-bold tabular-nums ${
+                        isIncome ? "text-emerald-400" : "text-red-400"
                       }`}
                     >
                       {isIncome ? "+" : "−"}

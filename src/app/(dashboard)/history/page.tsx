@@ -149,8 +149,11 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Historial</h1>
-        <p className="text-muted-foreground">
+        <div className="flex items-center gap-2 mb-1">
+          <History className="h-5 w-5 text-[hsl(var(--primary)/0.8)]" />
+          <h1 className="text-2xl font-extrabold tracking-tight">Historial</h1>
+        </div>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
           Quién hizo qué y cuándo. Se escribe solo, como efecto de las operaciones — no se
           puede editar ni borrar desde acá.
         </p>

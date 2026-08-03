@@ -90,14 +90,13 @@ export default function OnboardingPage() {
   if (step === 1) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
-        <div className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Sparkles className="h-6 w-6 text-primary" />
+        <div className="space-y-3 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 border border-indigo-500/25 shadow-lg shadow-indigo-500/10">
+            <Sparkles className="h-7 w-7 text-indigo-400 animate-pulse" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">¿A qué se dedica tu negocio?</h1>
-          <p className="text-muted-foreground">
-            Elegí lo más parecido y te dejo todo preconfigurado. Después podés cambiar
-            cualquier cosa desde Ajustes — no queda nada fijo.
+          <h1 className="text-3xl font-extrabold tracking-tight">¿A qué se dedica tu negocio?</h1>
+          <p className="text-sm text-[hsl(var(--muted-foreground))] max-w-md mx-auto">
+            Elegí lo más parecido y te dejo todo preconfigurado. Después podés cambiar cualquier cosa desde Ajustes.
           </p>
         </div>
 
@@ -114,12 +113,12 @@ export default function OnboardingPage() {
                 key={industry.id}
                 type="button"
                 onClick={() => pickIndustry(industry)}
-                className="rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-accent"
+                className="group rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-left transition-all duration-200 hover:border-indigo-500/50 hover:bg-[hsl(var(--secondary)/0.5)] shadow-md hover:shadow-indigo-500/10"
               >
-                <h3 className="font-medium">{industry.label}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{industry.description}</p>
+                <h3 className="font-bold text-base text-[hsl(var(--foreground))] group-hover:text-indigo-400 transition-colors">{industry.label}</h3>
+                <p className="mt-1.5 text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">{industry.description}</p>
                 {industry.serviceTypes.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="mt-3 text-[11px] font-semibold text-indigo-400">
                     Incluye {industry.serviceTypes.length} servicios sugeridos
                   </p>
                 )}

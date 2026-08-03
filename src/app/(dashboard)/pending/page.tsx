@@ -129,21 +129,20 @@ export default function PendingPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Pendientes</h1>
-          <p className="text-muted-foreground">
-            Lo que falta <strong>agendar</strong>. Al darle fecha desaparece de acá; si se elimina
-            del calendario, vuelve.
+          <h1 className="text-2xl font-extrabold tracking-tight">Pendientes</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Lo que falta agendar. Al darle fecha desaparece de acá; si se elimina del calendario, vuelve.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
+        <div className="flex items-center gap-2 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
+          <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="rounded-lg h-8 w-8">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-40 text-center text-sm font-medium capitalize">
+          <span className="min-w-36 text-center text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
             {MONTHS[month.getMonth()]} {month.getFullYear()}
           </span>
-          <Button variant="outline" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente">
+          <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="rounded-lg h-8 w-8">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -185,7 +184,11 @@ export default function PendingPage() {
                   return (
                     <Card
                       key={item.client.id}
-                      className={isOverdue ? "border-red-500/40 p-4" : "p-4"}
+                      className={
+                        isOverdue
+                          ? "rounded-2xl border-l-4 border-l-red-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
+                          : "rounded-2xl border-l-4 border-l-amber-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
+                      }
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 space-y-1">
@@ -280,7 +283,11 @@ export default function PendingPage() {
                   return (
                     <Card
                       key={item.jobId}
-                      className={item.notYetDue ? "p-4 opacity-60" : "p-4"}
+                      className={
+                        item.notYetDue
+                          ? "rounded-2xl border-l-4 border-l-indigo-500/40 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 opacity-60"
+                          : "rounded-2xl border-l-4 border-l-indigo-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
+                      }
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 space-y-1">
@@ -358,7 +365,7 @@ export default function PendingPage() {
                   if (item.kind !== "UNSCHEDULED_VISIT") return null
 
                   return (
-                    <Card key={item.visitId} className="p-4">
+                    <Card key={item.visitId} className="rounded-2xl border-l-4 border-l-slate-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 space-y-1">
                           <h3 className="font-medium">{item.client.name}</h3>

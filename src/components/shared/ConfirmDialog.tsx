@@ -40,26 +40,38 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className="max-w-md rounded-2xl border border-[hsl(var(--border))]
+          bg-[hsl(var(--card))] shadow-2xl shadow-black/50"
+      >
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          <DialogTitle className="text-base font-bold">{title}</DialogTitle>
+          {description && (
+            <DialogDescription className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed">
+              {description}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button
             type="button"
             variant="outline"
             disabled={isPending}
             onClick={() => onOpenChange(false)}
+            className="rounded-xl border-[hsl(var(--border))] hover:bg-[hsl(var(--secondary))]"
           >
             {cancelLabel}
           </Button>
           <Button
             type="button"
-            variant={variant === "destructive" ? "destructive" : "default"}
             disabled={isPending}
             onClick={onConfirm}
+            className={
+              variant === "destructive"
+                ? "rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white hover:shadow-lg hover:shadow-red-500/30 border-none"
+                : "rounded-xl"
+            }
           >
             {isPending ? "Procesando…" : confirmLabel}
           </Button>

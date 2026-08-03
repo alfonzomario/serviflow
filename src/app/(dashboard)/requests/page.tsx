@@ -57,8 +57,8 @@ export default function RequestsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Solicitudes</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight">Solicitudes</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
             Pedidos de clientes esperando ser agendados.
           </p>
         </div>
@@ -68,26 +68,32 @@ export default function RequestsPage() {
         </Button>
       </div>
 
-      <div className="flex gap-2">
-        {TABS.map((tab) => (
-          <Button
-            key={tab.value}
-            variant={status === tab.value ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatus(tab.value)}
-          >
-            {tab.label}
-            {counts.data ? (
-              <span
-                className={`ml-2 rounded-full px-1.5 text-xs ${
-                  status === tab.value ? "bg-primary-foreground/20" : "bg-muted"
-                }`}
-              >
-                {counts.data[tab.value]}
-              </span>
-            ) : null}
-          </Button>
-        ))}
+      <div className="flex gap-2 p-1 rounded-xl bg-[hsl(var(--secondary)/0.4)] border border-[hsl(var(--border))] w-fit">
+        {TABS.map((tab) => {
+          const isActive = status === tab.value
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setStatus(tab.value)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                isActive
+                  ? "bg-[hsl(var(--primary))] text-white shadow-md shadow-indigo-500/20"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {tab.label}
+              {counts.data && (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                    isActive ? "bg-white/20 text-white" : "bg-[hsl(var(--secondary))] text-[hsl(var(--muted-foreground))]"
+                  }`}
+                >
+                  {counts.data[tab.value]}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {isLoading ? (
@@ -117,7 +123,7 @@ export default function RequestsPage() {
             const scheduledVisit = request.visits[0]
 
             return (
-              <Card key={request.id} className="p-4">
+              <Card key={request.id} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-sm hover:border-[hsl(var(--primary)/0.3)] transition-all">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">

@@ -26,12 +26,12 @@ export default function DashboardLayout({
   // The wizard fills the screen: no sidebar, nothing to navigate away to yet.
   if (pathname === "/onboarding") {
     return (
-      <div className="min-h-screen overflow-y-auto bg-muted/20 p-4 lg:p-8">{children}</div>
+      <div className="min-h-screen overflow-y-auto bg-[hsl(var(--background))] p-4 lg:p-8">{children}</div>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-[hsl(var(--background))]">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div 
@@ -42,7 +42,7 @@ export default function DashboardLayout({
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
+        fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <Sidebar onClose={() => setSidebarOpen(false)} />
@@ -51,7 +51,7 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-muted/20 p-4 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-[hsl(var(--background))] p-4 lg:p-6">
           <div className="mx-auto max-w-7xl">
             {children}
           </div>

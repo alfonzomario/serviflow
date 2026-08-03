@@ -29,28 +29,25 @@ export default function SuperAdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
-          <ShieldCheck className="h-7 w-7" />
+        <div className="p-3 rounded-2xl bg-purple-500/15 border border-purple-500/25 shadow-lg shadow-purple-500/10">
+          <ShieldCheck className="h-6 w-6 text-purple-400" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Superadmin Plataforma</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight">Superadmin Plataforma</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
             Administración global de organizaciones (Tenants), cuentas y estado del sistema ServiFlow.
           </p>
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card className="bg-card border border-border shadow-sm">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs font-semibold uppercase">Organizaciones</CardDescription>
-            <CardTitle className="text-2xl font-bold">{stats?.totalTenants ?? 0}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 hover:border-[hsl(var(--primary)/0.3)] transition-all">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground)/0.7)] mb-1">Organizaciones</p>
+          <p className="text-3xl font-extrabold tracking-tight">{stats?.totalTenants ?? 0}</p>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
             {stats?.activeTenants ?? 0} activas en la plataforma.
-          </CardContent>
-        </Card>
+          </p>
+        </div>
 
         <Card className="bg-card border border-border shadow-sm">
           <CardHeader className="p-4 pb-2">

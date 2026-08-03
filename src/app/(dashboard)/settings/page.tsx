@@ -128,21 +128,25 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Ajustes</h1>
-          <p className="text-muted-foreground">
-            Todo lo que configuraste al arrancar se cambia acá.
+          <h1 className="text-2xl font-extrabold tracking-tight">Ajustes</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Configuraciones operativas, servicios y reglas de frecuencia de tu negocio.
           </p>
         </div>
-        <Button onClick={onSave} disabled={isSaving}>
+        <Button
+          onClick={onSave}
+          disabled={isSaving}
+          className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/25 border-none"
+        >
           <Save className="mr-2 h-4 w-4" />
           {isSaving ? "Guardando…" : "Guardar cambios"}
         </Button>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
         <CardHeader>
-          <CardTitle>El negocio</CardTitle>
-          <CardDescription>Datos generales y desde dónde salís a trabajar.</CardDescription>
+          <CardTitle className="text-base font-bold">El negocio</CardTitle>
+          <CardDescription className="text-xs text-[hsl(var(--muted-foreground))]">Datos generales y desde dónde salís a trabajar.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
@@ -204,10 +208,10 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
         <CardHeader>
-          <CardTitle>Cómo se repiten los servicios</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base font-bold">Cómo se repiten los servicios</CardTitle>
+          <CardDescription className="text-xs text-[hsl(var(--muted-foreground))]">
             Define cuándo algo aparece en Pendientes. Nada de esto agenda por vos.
           </CardDescription>
         </CardHeader>

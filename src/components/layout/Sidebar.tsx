@@ -95,76 +95,128 @@ export function Sidebar({ className, onClose }: SidebarProps) {
     }))
     .filter((group) => group.items.length > 0)
 
+  const userInitial = session?.user?.name?.charAt(0)?.toUpperCase() || "U"
+
   return (
-    <div className={cn("flex h-full flex-col bg-slate-950 text-slate-200", className)}>
-      <div className="flex h-16 items-center px-6 border-b border-slate-800">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-white">
-          <div className="h-8 w-8 rounded-md bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white">S</span>
+    <div
+      className={cn(
+        "flex h-full flex-col border-r border-[hsl(var(--sidebar-border))]",
+        "bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--foreground))]",
+        className
+      )}
+    >
+      {/* Logo */}
+      <div className="flex h-14 shrink-0 items-center px-5 border-b border-[hsl(var(--sidebar-border))]">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 font-extrabold text-lg text-white tracking-tight"
+        >
+          <div
+            className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0
+              bg-gradient-to-br from-blue-500 to-indigo-600
+              shadow-lg shadow-indigo-500/30"
+          >
+            <span className="text-white text-sm font-black">S</span>
           </div>
           ServiFlow
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-800">
+      {/* Nav */}
+      <div className="flex-1 overflow-y-auto py-4">
         {isLoading ? (
-          <div className="space-y-2 px-6">
+          <div className="space-y-2 px-4">
             {Array.from({ length: 8 }).map((_, index) => (
-              <div key={index} className="h-8 animate-pulse rounded-md bg-slate-900" />
+              <div
+                key={index}
+                className="h-8 rounded-xl bg-[hsl(var(--secondary))] animate-pulse"
+              />
             ))}
           </div>
         ) : (
-        <nav className="space-y-6 px-4">
-          {filteredNav.map((group) => (
-            <div key={group.title}>
-              <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {group.title}
-              </h4>
-              <ul className="space-y-1">
-                {group.items.map((item) => {
-                  const isActive = pathname === item.href
-                  return (
-                    <li key={item.name}>
-                      <Link
-                        href={item.href}
-                        onClick={onClose}
-                        className={cn(
-                          "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                          isActive
-                            ? "bg-indigo-500/10 text-indigo-400"
-                            : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute left-0 h-8 w-1 rounded-r-full bg-indigo-500 transition-all duration-200",
-                          isActive ? "opacity-100" : "opacity-0"
-                        )} />
-                        <item.icon className={cn("h-4 w-4", isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300")} />
-                        {item.name}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
-        </nav>
+          <nav className="space-y-5 px-3">
+            {filteredNav.map((group) => (
+              <div key={group.title}>
+                <h4 className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground)/0.6)]">
+                  {group.title}
+                </h4>
+                <ul className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = pathname === item.href
+                    return (
+                      <li key={item.name}>
+                        <Link
+                          href={item.href}
+                          onClick={onClose}
+                          className={cn(
+                            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                            isActive
+                              ? "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--sidebar-active-text))] border border-[hsl(var(--primary)/0.2)] shadow-[inset_0_1px_0_hsl(var(--primary)/0.1)]"
+                              : "text-[hsl(var(--muted-foreground)/0.8)] hover:bg-[hsl(var(--secondary)/0.6)] hover:text-[hsl(var(--foreground))]"
+                          )}
+                        >
+                          {/* Active indicator bar */}
+                          <div
+                            className={cn(
+                              "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-r-full transition-all duration-200",
+                              "bg-gradient-to-b from-blue-400 to-indigo-500",
+                              isActive ? "h-5 opacity-100" : "h-0 opacity-0"
+                            )}
+                          />
+                          <item.icon
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-colors duration-150",
+                              isActive
+                                ? "text-[hsl(var(--sidebar-active-text))]"
+                                : "text-[hsl(var(--muted-foreground)/0.6)] group-hover:text-[hsl(var(--foreground)/0.8)]"
+                            )}
+                          />
+                          {item.name}
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
+          </nav>
         )}
       </div>
 
-      <div className="border-t border-slate-800 p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-slate-900 p-3">
-          <div className="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white uppercase">
-            {session?.user?.name?.charAt(0) || "U"}
+      {/* User footer */}
+      <div className="shrink-0 border-t border-[hsl(var(--sidebar-border))] p-3">
+        <div
+          className="flex items-center gap-3 rounded-xl p-3
+            bg-[hsl(var(--secondary))] border border-[hsl(var(--border))]"
+        >
+          {/* Avatar */}
+          <div
+            className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center font-bold text-white text-sm
+              bg-gradient-to-br from-blue-500 to-indigo-600
+              ring-2 ring-indigo-500/20"
+          >
+            {userInitial}
           </div>
+
+          {/* Name + role */}
           <div className="flex-1 min-w-0">
-            <p className="truncate text-sm font-medium text-white">{session?.user?.name}</p>
-            <p className="truncate text-xs text-slate-400">{role}</p>
+            <p className="truncate text-sm font-semibold text-white leading-tight">
+              {session?.user?.name}
+            </p>
+            <span
+              className="inline-block mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full
+                bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]"
+            >
+              {role}
+            </span>
           </div>
+
+          {/* Logout */}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             aria-label="Cerrar sesión"
-            className="text-slate-500 hover:text-white transition-colors"
+            className="text-[hsl(var(--muted-foreground)/0.6)] hover:text-white
+              hover:bg-[hsl(var(--accent))] rounded-lg p-1.5 transition-all duration-150"
           >
             <LogOut className="h-4 w-4" />
           </button>

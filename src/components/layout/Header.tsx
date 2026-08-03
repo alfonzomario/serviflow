@@ -54,6 +54,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const [query, setQuery] = React.useState("")
   const [open, setOpen] = React.useState(false)
+  const [inputFocused, setInputFocused] = React.useState(false)
 
   // Se espera a que deje de tipear para no pegarle a la base en cada tecla.
   const [debounced, setDebounced] = React.useState("")
@@ -83,134 +84,186 @@ export function Header({ onMenuClick }: HeaderProps) {
     router.push(href)
   }
 
+  const sectionName = sectionFor(pathname)
+
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-md sm:gap-6 sm:px-6">
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+    <header
+      className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-4
+        border-b border-[hsl(var(--border))]
+        bg-[hsl(var(--sidebar-bg)/0.85)] backdrop-blur-xl
+        px-4 sm:gap-6 sm:px-6"
+    >
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden shrink-0 rounded-lg hover:bg-[hsl(var(--secondary))]"
+        onClick={onMenuClick}
+      >
         <Menu className="h-5 w-5" />
         <span className="sr-only">Abrir el menú</span>
       </Button>
 
-      <div className="flex flex-1 items-center gap-4 lg:gap-6">
-        <div className="hidden items-center text-sm font-medium text-muted-foreground lg:flex">
-          <span>{sectionFor(pathname)}</span>
-        </div>
+      {/* Breadcrumb */}
+      <div className="hidden items-center gap-1.5 text-sm lg:flex">
+        <span className="text-[hsl(var(--muted-foreground)/0.5)] font-medium">ServiFlow</span>
+        {sectionName && (
+          <>
+            <span className="text-[hsl(var(--muted-foreground)/0.35)]">/</span>
+            <span className="font-semibold text-[hsl(var(--foreground)/0.9)] tracking-tight">
+              {sectionName}
+            </span>
+          </>
+        )}
+      </div>
 
-        <div className="ml-auto flex w-full max-w-sm items-center space-x-2 sm:w-auto sm:space-x-4">
-          {canSeeClients && (
-            <Popover open={open && debounced.length >= 2} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar un cliente…"
-                    className="w-full bg-muted/50 pl-9 md:w-[300px]"
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value)
-                      setOpen(true)
-                    }}
-                    onFocus={() => setOpen(true)}
-                  />
-                </div>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                className="w-[320px] p-1"
-                // Que el foco se quede en el input: si se lo lleva el popover,
-                // seguir tipeando cierra la lista.
-                onOpenAutoFocus={(event) => event.preventDefault()}
-              >
-                {results.isFetching && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">Buscando…</p>
-                )}
-                {!results.isFetching && (results.data?.items.length ?? 0) === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">
-                    Ningún cliente coincide con “{debounced}”.
-                  </p>
-                )}
-                {results.data?.items.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => goTo(`/clients/${client.id}`)}
-                    className="flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left hover:bg-accent"
-                  >
-                    <span className="text-sm font-medium">{client.name}</span>
-                    <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                      {client.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {client.phone}
-                        </span>
-                      )}
-                      {client.address && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {client.address}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {canSeeNotes && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative shrink-0 text-muted-foreground"
-                  aria-label={
-                    dueCount > 0
-                      ? `${dueCount} ${dueCount === 1 ? "recordatorio vencido" : "recordatorios vencidos"}`
-                      : "Sin recordatorios vencidos"
-                  }
+      {/* Right side */}
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {/* Search */}
+        {canSeeClients && (
+          <Popover open={open && debounced.length >= 2} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <div className="relative">
+                <Search
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 transition-colors duration-150 ${
+                    inputFocused
+                      ? "text-[hsl(var(--primary)/0.8)]"
+                      : "text-[hsl(var(--muted-foreground)/0.5)]"
+                  }`}
+                />
+                <Input
+                  type="search"
+                  placeholder="Buscar cliente…"
+                  className={`pl-9 pr-3 py-1.5 text-sm rounded-lg border transition-all duration-300
+                    bg-[hsl(var(--secondary))] border-[hsl(var(--border))]
+                    placeholder:text-[hsl(var(--muted-foreground)/0.5)]
+                    focus:ring-2 focus:ring-[hsl(var(--primary)/0.25)] focus:border-[hsl(var(--primary)/0.5)]
+                    ${inputFocused ? "w-64 sm:w-72" : "w-44 sm:w-56"}`}
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value)
+                    setOpen(true)
+                  }}
+                  onFocus={() => { setOpen(true); setInputFocused(true) }}
+                  onBlur={() => setInputFocused(false)}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[320px] p-1.5 rounded-xl border border-[hsl(var(--border))]
+                bg-[hsl(var(--card))] backdrop-blur-xl shadow-2xl shadow-black/30"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              {results.isFetching && (
+                <p className="px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">Buscando…</p>
+              )}
+              {!results.isFetching && (results.data?.items.length ?? 0) === 0 && (
+                <p className="px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
+                  Sin resultados para &ldquo;{debounced}&rdquo;.
+                </p>
+              )}
+              {results.data?.items.map((client) => (
+                <button
+                  key={client.id}
+                  type="button"
+                  onClick={() => goTo(`/clients/${client.id}`)}
+                  className="flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left
+                    hover:bg-[hsl(var(--secondary))] transition-colors duration-100"
                 >
-                  <Bell className="h-5 w-5" />
-                  {dueCount > 0 && (
-                    <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-red-500" />
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[320px] p-1">
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium">Recordatorios vencidos</p>
-                  <p className="text-xs text-muted-foreground">
-                    La app no manda nada por su cuenta: te los muestra acá.
-                  </p>
-                </div>
-                {dueCount === 0 ? (
-                  <p className="px-3 pb-3 text-sm text-muted-foreground">
-                    No hay ninguno vencido.
-                  </p>
-                ) : (
-                  <>
-                    {reminders.data?.slice(0, 5).map((note) => (
-                      <div key={note.id} className="rounded-md px-3 py-2 hover:bg-accent">
-                        <p className="line-clamp-2 text-sm">{note.content}</p>
-                        {note.reminderAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Venció el {formatDate(note.reminderAt)}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                    <Link
-                      href="/notes"
-                      className="block rounded-md px-3 py-2 text-sm font-medium text-primary hover:bg-accent"
-                    >
-                      Ver todas las notas
-                    </Link>
-                  </>
+                  <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                    {client.name}
+                  </span>
+                  <span className="flex flex-wrap gap-x-3 text-xs text-[hsl(var(--muted-foreground))]">
+                    {client.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {client.phone}
+                      </span>
+                    )}
+                    {client.address && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {client.address}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        )}
+
+        {/* Notifications bell */}
+        {canSeeNotes && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative shrink-0 rounded-lg hover:bg-[hsl(var(--secondary))]
+                  text-[hsl(var(--muted-foreground)/0.7)] hover:text-[hsl(var(--foreground))]"
+                aria-label={
+                  dueCount > 0
+                    ? `${dueCount} ${dueCount === 1 ? "recordatorio vencido" : "recordatorios vencidos"}`
+                    : "Sin recordatorios vencidos"
+                }
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {dueCount > 0 && (
+                  <span
+                    className="absolute right-1.5 top-1.5 flex h-2 w-2 rounded-full bg-red-500
+                      ring-2 ring-[hsl(var(--sidebar-bg))] animate-pulse"
+                  />
                 )}
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[320px] p-1.5 rounded-xl border border-[hsl(var(--border))]
+                bg-[hsl(var(--card))] backdrop-blur-xl shadow-2xl shadow-black/30"
+            >
+              <div className="px-3 py-2 border-b border-[hsl(var(--border))] mb-1">
+                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                  Recordatorios vencidos
+                </p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                  La app no manda nada por su cuenta: te los muestra acá.
+                </p>
+              </div>
+              {dueCount === 0 ? (
+                <p className="px-3 py-3 text-sm text-[hsl(var(--muted-foreground))]">
+                  No hay ninguno vencido. ✓
+                </p>
+              ) : (
+                <>
+                  {reminders.data?.slice(0, 5).map((note) => (
+                    <div
+                      key={note.id}
+                      className="rounded-lg px-3 py-2 hover:bg-[hsl(var(--secondary))] transition-colors"
+                    >
+                      <p className="line-clamp-2 text-sm text-[hsl(var(--foreground))]">
+                        {note.content}
+                      </p>
+                      {note.reminderAt && (
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                          Venció el {formatDate(note.reminderAt)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  <Link
+                    href="/notes"
+                    className="block rounded-lg px-3 py-2 text-sm font-semibold
+                      text-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary))] transition-colors"
+                  >
+                    Ver todas las notas →
+                  </Link>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </header>
   )
