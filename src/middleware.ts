@@ -2,9 +2,16 @@ import NextAuth from 'next-auth';
 import { authConfig } from './server/auth.config';
 import { NextResponse } from 'next/server';
 
+// Ensure NEXTAUTH_URL and AUTH_URL always have protocol prefix (https://)
+if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.startsWith('http')) {
+  process.env.NEXTAUTH_URL = `https://${process.env.NEXTAUTH_URL}`;
+}
+if (process.env.AUTH_URL && !process.env.AUTH_URL.startsWith('http')) {
+  process.env.AUTH_URL = `https://${process.env.AUTH_URL}`;
+}
+
 // Edge-safe Auth.js instance: authConfig carries no Prisma import.
 const { auth } = NextAuth(authConfig);
-
 
 const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/verify-email'];
 
@@ -27,7 +34,6 @@ export default auth((req) => {
     console.error('[middleware auth error]', err);
   }
 });
-
 
 export const config = {
   // Everything except static assets, images and the API routes (tRPC does its
