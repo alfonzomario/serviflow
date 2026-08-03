@@ -811,7 +811,15 @@ export const executeUserImport = async ({
       for (const row of rows) {
         const email = (row.values.email as string | undefined)?.toLowerCase();
         const name = row.values.name as string | undefined;
+        const role = row.values.role as string | undefined;
         if (!email || !name) continue;
+
+        // Las cuentas con rol CLIENT de la planilla vieja eran accesos al portal de clientes,
+        // no personal del negocio. Los clientes ya fueron importados a la tabla de Clientes.
+        if (role === 'CLIENT') {
+          skipped++;
+          continue;
+        }
 
         // Un email repetido nunca se pisa, sea cual sea la estrategia: el usuario
         // que ya existe puede tener permisos ajustados a mano y una contraseña en

@@ -565,8 +565,9 @@ const USER_SIGNATURES: ColumnSignature[] = [
     type: 'enum',
     enumValues: {
       OWNER: ['owner', 'dueño', 'dueno', 'titular', 'propietario'],
-      ADMIN: ['admin', 'administrador', 'administrativo', 'encargado', 'supervisor'],
-      OPERATOR: ['operador', 'operator', 'operario', 'tecnico', 'técnico', 'empleado', 'campo'],
+      ADMIN: ['admin', 'administrador', 'administrativo', 'encargado', 'supervisor', 'admin2'],
+      OPERATOR: ['operador', 'operator', 'operario', 'tecnico', 'técnico', 'empleado', 'campo', 'operativo'],
+      CLIENT: ['client', 'cliente'],
     },
     hint: 'Si no se mapea, todos entran como operadores.',
   },
