@@ -16,6 +16,7 @@
  *    Adaptarse es tarea nuestra, no del usuario.
  */
 
+import { toDate, formatInTimeZone } from 'date-fns-tz';
 import {
   configFor,
   signaturesFor,
@@ -320,53 +321,54 @@ const trailingTime = (value: string): { hours: number; minutes: number } | null 
  * MM/dd: la planilla es argentina hasta que se demuestre lo contrario, y si el
  * primer número es mayor a 12 no hay ambigüedad posible.
  */
-export const parseImportDate = (raw: string): Date | null => {
+const DEFAULT_TIMEZONE = 'America/Argentina/Buenos_Aires';
+
+export const parseImportDate = (
+  raw: string,
+  timezone: string = DEFAULT_TIMEZONE
+): Date | null => {
   const value = raw.trim();
   if (!value) return null;
 
   const time = trailingTime(value);
 
+  let year: number;
+  let month: number;
+  let day: number;
+
   const iso = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
-    const date = new Date(
-      Number(iso[1]),
-      Number(iso[2]) - 1,
-      Number(iso[3]),
-      time?.hours ?? 0,
-      time?.minutes ?? 0
-    );
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else {
+    const slash = value.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+    if (!slash) return null;
+    let [, first, second, rawYear] = slash;
+    day = Number(first);
+    month = Number(second);
 
-  const slash = value.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
-  if (slash) {
-    let [, first, second, year] = slash;
-    let day = Number(first);
-    let month = Number(second);
-
-    // Solo damos vuelta cuando el primero no puede ser día.
     if (day > 12 && month <= 12) {
       // dd/MM, ya está bien.
     } else if (month > 12 && day <= 12) {
       [day, month] = [month, day];
     }
 
-    const fullYear = year.length === 2 ? 2000 + Number(year) : Number(year);
-    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-
-    const date = new Date(
-      fullYear,
-      month - 1,
-      day,
-      time?.hours ?? 0,
-      time?.minutes ?? 0
-    );
-    // Rechaza 31/02: el rollover de Date lo convertiría en marzo.
-    if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-    return date;
+    year = rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear);
   }
 
-  return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const hours = time?.hours ?? 0;
+  const minutes = time?.minutes ?? 0;
+
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(
+    2,
+    '0'
+  )}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+  const date = toDate(dateStr, { timeZone: timezone });
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
 };
 
 /**
@@ -675,9 +677,11 @@ export const validateRows = ({
     // `scheduledAt` quede completo y las visitas no caigan todas a medianoche.
     const timeOfDay = values.timeOfDay as number | undefined;
     if (timeOfDay !== undefined && values.scheduledAt instanceof Date) {
-      const withTime = new Date(values.scheduledAt);
-      withTime.setHours(Math.floor(timeOfDay / 60), timeOfDay % 60, 0, 0);
-      values.scheduledAt = withTime;
+      const datePart = formatInTimeZone(values.scheduledAt, DEFAULT_TIMEZONE, 'yyyy-MM-dd');
+      const hours = Math.floor(timeOfDay / 60);
+      const minutes = timeOfDay % 60;
+      const dateStr = `${datePart}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+      values.scheduledAt = toDate(dateStr, { timeZone: DEFAULT_TIMEZONE });
     }
     delete values.timeOfDay;
 
