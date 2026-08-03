@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Trash2 } from "lucide-react"
+import { Trash2, CheckCircle2 } from "lucide-react"
 import { trpc } from "@/lib/trpc"
 import { formatDate, toDateTimeLocalValue } from "@/lib/format"
 import { useTenantLabels } from "@/hooks/useTenantLabels"
@@ -29,7 +29,7 @@ import {
 const VISIT_STATUSES = [
   { value: "PENDING_CONFIRM", label: "Sin confirmar" },
   { value: "CONFIRMED", label: "Confirmada" },
-  { value: "COMPLETED", label: "Completada" },
+  { value: "COMPLETED", label: "Realizada" },
   { value: "CANCELLED", label: "Cancelada" },
   { value: "SKIPPED", label: "Omitida" },
 ] as const
@@ -353,16 +353,29 @@ export function VisitForm({
               </datalist>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="price">Precio</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="price">Precio</Label>
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 accent-primary rounded"
+                    checked={values.price === 0}
+                    onChange={(e) => set("price", e.target.checked ? 0 : 5000)}
+                  />
+                  Sin valor
+                </label>
+              </div>
               <Input
                 id="price"
                 type="number"
                 min={0}
                 step={500}
-                value={values.price}
+                disabled={values.price === 0}
+                placeholder={values.price === 0 ? "Sin valor" : "0"}
+                value={values.price === 0 ? "" : values.price}
                 onChange={(event) => set("price", Number(event.target.value))}
               />
-              {!isEditing && suggestedPrice.data?.price ? (
+              {!isEditing && suggestedPrice.data?.price && values.price !== 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Último cobrado a este cliente: ${suggestedPrice.data.price}
                 </p>
@@ -477,18 +490,44 @@ export function VisitForm({
             </p>
           )}
 
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="sm:justify-between gap-2">
             {isEditing ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                disabled={deleteVisit.isPending}
-                onClick={() => deleteVisit.mutate({ id: editingId! })}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={deleteVisit.isPending}
+                  onClick={() => deleteVisit.mutate({ id: editingId! })}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar
+                </Button>
+
+                {values.status !== "COMPLETED" && (
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                    disabled={isSaving}
+                    onClick={async () => {
+                      try {
+                        await updateStatus.mutateAsync({
+                          id: editingId!,
+                          status: "COMPLETED",
+                        })
+                        toast.success("Visita marcada como realizada")
+                        await invalidate()
+                        onOpenChange(false)
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Error al actualizar")
+                      }
+                    }}
+                  >
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    Marcar realizada
+                  </Button>
+                )}
+              </div>
             ) : (
               <span />
             )}

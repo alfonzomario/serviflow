@@ -137,44 +137,23 @@ export default function PendingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-              className="h-8 px-2.5 text-xs gap-1.5"
-            >
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("grid")}
-              className="h-8 px-2.5 text-xs gap-1.5"
-            >
-              Cuadrícula
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
-            <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="rounded-lg h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="min-w-36 text-center text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
-              {MONTHS[month.getMonth()]} {month.getFullYear()}
-            </span>
-            <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="rounded-lg h-8 w-8">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="flex items-center gap-2 bg-[hsl(var(--secondary)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))]">
+          <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="rounded-lg h-8 w-8">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-36 text-center text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
+            {MONTHS[month.getMonth()]} {month.getFullYear()}
+          </span>
+          <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="rounded-lg h-8 w-8">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-xl bg-muted" />
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-40 animate-pulse rounded-2xl bg-muted" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -189,7 +168,7 @@ export default function PendingPage() {
         <div className="space-y-8">
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-amber-500" />
+              <Clock className="h-4 w-4 text-sky-500" />
               <h2 className="font-semibold">{labels.recurring} sin visita del período</h2>
               <Badge variant="secondary">{recurring.length}</Badge>
             </div>
@@ -199,42 +178,28 @@ export default function PendingPage() {
                 {`Ningún ${labels.recurring.toLowerCase()} vence en este mes.`}
               </p>
             ) : (
-              <div className={viewMode === "grid" ? "grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" : "grid gap-3"}>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {recurring.map((item) => {
                   if (item.kind !== "RECURRING_SERVICE") return null
                   const itemDue = new Date(item.dueAt)
-                  const isPreviousMonth =
-                    itemDue.getFullYear() < month.getFullYear() ||
-                    (itemDue.getFullYear() === month.getFullYear() && itemDue.getMonth() < month.getMonth())
 
                   return (
                     <Card
                       key={item.client.id}
-                      className={
-                        isPreviousMonth
-                          ? "rounded-2xl border-l-4 border-l-red-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md flex flex-col justify-between"
-                          : "rounded-2xl border-l-4 border-l-sky-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md flex flex-col justify-between"
-                      }
+                      className="rounded-2xl border-l-4 border-l-sky-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md flex flex-col justify-between"
                     >
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h3 className="font-semibold text-base truncate">{item.client.name}</h3>
-                          {isPreviousMonth ? (
-                            <Badge variant="outline" className="border-none bg-red-500/10 text-red-600 text-xs">
-                              <AlertTriangle className="mr-1 h-3 w-3" />
-                              Venció en {MONTHS[itemDue.getMonth()]}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-none bg-sky-500/10 text-sky-600 text-xs font-medium">
-                              Abono de {MONTHS[itemDue.getMonth()]}
-                            </Badge>
-                          )}
+                          <Badge variant="outline" className="border-none bg-sky-500/10 text-sky-600 text-xs font-medium">
+                            Abono de {MONTHS[month.getMonth()]}
+                          </Badge>
                         </div>
 
                         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                           {item.client.phone && (
                             <span className="flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
+                              <Phone className="h-3 w-3 shrink-0" />
                               {formatPhone(item.client.phone)}
                             </span>
                           )}

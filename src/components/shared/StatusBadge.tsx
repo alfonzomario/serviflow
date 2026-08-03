@@ -28,7 +28,7 @@ export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
     },
     [VisitStatus.COMPLETED]: {
       color: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20",
-      label: "Completada",
+      label: "Realizada",
       dotAnimated: false,
     },
     [VisitStatus.CANCELLED]: {
