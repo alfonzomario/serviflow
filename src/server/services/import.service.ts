@@ -18,6 +18,20 @@ import type { Prisma, VisitStatus } from '@prisma/client';
 
 export type DuplicateStrategy = 'SKIP' | 'UPDATE' | 'CREATE_NEW';
 
+/**
+ * Convierte el error de una fila en uno que dice cuál fue.
+ *
+ * Se relanza en vez de acumularse y seguir: Postgres aborta la transacción
+ * entera ante cualquier sentencia fallida (`25P02`), así que atrapar el error y
+ * continuar solo lograba que todas las filas siguientes fallaran en cascada con
+ * un mensaje incomprensible. El contrato es todo o nada; cuando algo se rompe,
+ * lo honesto es cortar y decir en qué fila.
+ */
+const rowError = (row: number, error: unknown) =>
+  new Error(
+    `Falló la fila ${row}: ${error instanceof Error ? error.message : 'error desconocido'}`
+  );
+
 export type ImportOutcome = {
   importId: string;
   imported: number;
@@ -66,11 +80,19 @@ export const executeClientImport = async ({
   // una importación de 2000 clientes en 2000 consultas.
   const existing = await db.client.findMany({
     where: tenantWhere(tenantId),
-    select: { id: true, name: true, address: true },
+    select: { id: true, name: true, address: true, externalId: true },
   });
 
   const existingByKey = new Map(
     existing.map((client) => [dedupeKeyOf(client.name, client.address), client.id])
+  );
+
+  // El id de origen identifica mejor que nombre + dirección: si el cliente ya
+  // se migró, se lo reconoce aunque le hayan cambiado el nombre después.
+  const existingByExternalId = new Map(
+    existing
+      .filter((client) => client.externalId)
+      .map((client) => [String(client.externalId).toLowerCase(), client.id])
   );
 
   const outcome = await db.$transaction(async (tx) => {
@@ -83,17 +105,28 @@ export const executeClientImport = async ({
     // Se van agregando los creados en esta corrida, para que dos filas
     // idénticas del mismo archivo no generen dos clientes con SKIP.
     const seen = new Map(existingByKey);
+    const seenExternal = new Map(existingByExternalId);
 
     for (const row of rows) {
       const name = String(row.values.name ?? '').trim();
       if (!name) continue;
 
       const address = (row.values.address as string | undefined) ?? null;
+      const externalId = (row.values.externalId as string | undefined)?.trim() || null;
       const key = dedupeKeyOf(name, address);
-      const duplicateId = seen.get(key);
+
+      // El id de origen manda: es más confiable que nombre + dirección, y
+      // además la base tiene una constraint única sobre él, así que ignorarlo
+      // haría fallar el insert en vez de reconocer el duplicado.
+      const duplicateId =
+        (externalId ? seenExternal.get(externalId.toLowerCase()) : undefined) ??
+        seen.get(key);
 
       const data = {
         name,
+        // El id de origen se guarda para que las visitas y los movimientos de
+        // la misma migración se puedan enganchar por él y no por el nombre.
+        externalId,
         email: (row.values.email as string | undefined) ?? null,
         phone: (row.values.phone as string | undefined) ?? null,
         address,
@@ -130,12 +163,10 @@ export const executeClientImport = async ({
           data: { ...data, tenantId, importId },
         });
         seen.set(key, created.id);
+        if (externalId) seenExternal.set(externalId.toLowerCase(), created.id);
         imported++;
       } catch (error) {
-        errors.push({
-          row: row.row,
-          message: error instanceof Error ? error.message : 'Error desconocido',
-        });
+        throw rowError(row.row, error);
       }
     }
 
@@ -287,10 +318,7 @@ export const executeVisitImport = async ({
         seen.add(key);
         imported++;
       } catch (error) {
-        errors.push({
-          row: row.row,
-          message: error instanceof Error ? error.message : 'Error desconocido',
-        });
+        throw rowError(row.row, error);
       }
     };
 
@@ -467,10 +495,7 @@ export const executeTransactionImport = async ({
         seen.add(key);
         imported++;
       } catch (error) {
-        errors.push({
-          row: row.row,
-          message: error instanceof Error ? error.message : 'Error desconocido',
-        });
+        throw rowError(row.row, error);
       }
     }
 
@@ -548,7 +573,13 @@ export const rollbackImport = async ({
     } else if (record.entityType === 'transactions') {
       deleted = await tx.transaction.updateMany({ where, data });
     } else {
-      deleted = await tx.client.updateMany({ where, data });
+      // Se libera el id de origen junto con el borrado: la constraint única lo
+      // sigue reservando aunque la fila esté eliminada, y reintentar la misma
+      // migración fallaría contra un cliente que el usuario ya no ve.
+      deleted = await tx.client.updateMany({
+        where,
+        data: { ...data, externalId: null },
+      });
     }
 
     await tx.importHistory.update({

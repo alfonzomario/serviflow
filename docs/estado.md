@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 123 tests
+npm test             # 147 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -104,10 +104,11 @@ Importar el historial de visitas no es un extra: sin él, un negocio que importa
 hay visita previa con la cual calcular el próximo vencimiento. Verificado — al
 importar historial, `recurring` pasa de 1 a 0 en la demo.
 
-Las visitas se enganchan al cliente por **nombre exacto normalizado, sin
-adivinar**. Una visita colgada del cliente equivocado no rompe nada visible pero
-corrompe Pendientes en silencio: le salda el período a quien no corresponde. Se
-rechaza la fila y se muestra qué nombre no apareció.
+Las visitas se enganchan al cliente por **id de origen si lo hay, y si no por
+nombre exacto normalizado — nunca adivinando**. Una visita colgada del cliente
+equivocado no rompe nada visible pero corrompe Pendientes en silencio: le salda
+el período a quien no corresponde. Se rechaza la fila y se muestra qué
+referencia no apareció.
 
 Las visitas importadas **no** generan transacciones ni pasan por
 `onVisitStatusChange`: son historial, no trabajo recién completado. Si no,
@@ -125,6 +126,18 @@ tratamientos iguales del mismo cliente en fechas distintas no se fusionan.
 > Acá es una **inferencia por única vez** — la planilla no trae ningún id — y el
 > resultado se persiste como una fila que ya no depende del agrupamiento.
 
+**Migrar desde la app vieja funciona.** Probado con las columnas reales de sus
+hojas `Clients` y `Visits`: se importan clientes primero, y las visitas se
+enganchan por el **id de origen** (`Client.externalId`), que es como la planilla
+vieja las referencia. El id se prueba antes que el nombre porque es exacto y no
+depende de cómo esté escrito. La columna `time`, que el legacy guarda aparte, se
+combina con la fecha.
+
+> El simulacro completo está en el commit correspondiente. Detalle que vale:
+> una visita `OMITIDA_MES` migrada entra como `SKIPPED`, así que **no** figura
+> como "última visita" — la regla de "período saldado sin visitar" sobrevive la
+> migración.
+
 **En movimientos el cliente es opcional.** Un gasto de nafta no tiene cliente:
 las filas que no lo resuelven entran igual, sin enganche, y los nombres que no
 se encontraron se listan para poder corregirlos. Es al revés que en visitas,
@@ -137,8 +150,8 @@ visita equivocada ensucia el historial del cliente sin que se note.
 
 **Historial** lee `audit_logs`, que hasta ahora se escribían y no los leía nadie.
 Append-only: no hay create/update/delete. El filtro solo ofrece las acciones que
-algo escribe de verdad (`CREATE`, `UPDATE`, `DELETE`, `STATUS_CHANGE`) — un
-filtro que nunca puede dar resultados se lee como un bug.
+algo escribe de verdad (`CREATE`, `UPDATE`, `DELETE`, `STATUS_CHANGE`, `IMPORT`)
+— un filtro que nunca puede dar resultados se lee como un bug.
 
 **Equipo** audita lo sensible: alta de usuario, cambio de rol, cambio de
 permisos, reset de contraseña y desactivación. Nunca se registra la contraseña
@@ -167,7 +180,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 81 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 105 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -181,20 +194,11 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
-0. **Migrar un cliente real de la app vieja está bloqueado.** Probado contra las
-   columnas que tiene de verdad la hoja `Visits` del legacy:
-   - **La hoja referencia al cliente por `clientId`, no por nombre**, y el
-     importador solo resuelve por nombre. Todas las filas de visitas fallarían.
-     Hace falta guardar el id original al importar clientes (un `externalId`) y
-     que la resolución de visitas lo use primero.
-   - **La columna `time` se ignora**: el legacy guarda fecha y hora separadas, y
-     `scheduledAt` se llevaría solo la fecha. Todas las visitas caerían a
-     medianoche.
-   - **Las hojas `Users`, `Requests` y `Notes` no se pueden importar.**
+1. **Lo que le falta al importador.**
+   - **Las hojas `Users`, `Requests` y `Notes` no se pueden importar.** Es lo
+     único que falta para migrar una planilla completa del legacy.
    - Las visitas archivadas viven en hojas aparte (`Visits_2024`, etc.): se
      pueden importar de a una, pero es manual.
-
-1. **Lo que le falta al importador.**
    - **Notas** no se pueden importar. Es la última entidad de la lista del plan
      y la más simple: no cuelga de nadie.
    - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
@@ -222,7 +226,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (81) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (105) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.

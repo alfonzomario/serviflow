@@ -58,13 +58,14 @@ const resolveForEntity = async (
 
   const clients = await db.client.findMany({
     where: tenantWhere(tenantId),
-    select: { id: true, name: true },
+    select: { id: true, name: true, externalId: true },
   });
 
   const resolution = resolveClientRefs({
     rows,
     clients,
     clientNameField: config.clientNameField,
+    clientExternalIdField: config.clientExternalIdField,
   });
 
   // Donde el cliente es opcional, no encontrarlo no descarta la fila: entra sin

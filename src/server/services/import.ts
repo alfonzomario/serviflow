@@ -288,6 +288,28 @@ export const parseImportDate = (raw: string): Date | null => {
  * que del lado de la escritura, y no se nota en un servidor en UTC-3, que es
  * justo donde lo probamos.
  */
+/**
+ * Hora del día como minutos desde medianoche. Acepta "9", "9:30", "09:30:00",
+ * "9.30" y el sufijo am/pm.
+ */
+export const parseTimeOfDay = (raw: string): number | null => {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+
+  const match = value.match(/^(\d{1,2})(?:[:.h](\d{1,2}))?(?::\d{1,2})?\s*(am|pm)?/);
+  if (!match) return null;
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? 0);
+  const suffix = match[3];
+
+  if (suffix === 'pm' && hours < 12) hours += 12;
+  if (suffix === 'am' && hours === 12) hours = 0;
+
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
 export const toDateOnly = (date: Date): Date =>
   new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
 
@@ -386,9 +408,19 @@ export const validateRows = ({
   const active = mappings.filter((mapping) => mapping.targetField !== null);
 
   const mappedFields = new Set(active.map((mapping) => mapping.targetField as string));
+  const labelOf = (field: string) =>
+    signatures.find((sig) => sig.field === field)?.label ?? field;
+
   const missingRequired = signatures
     .filter((sig) => sig.required && !mappedFields.has(sig.field))
     .map((sig) => sig.label);
+
+  // Grupos donde alcanza con uno: el cliente puede venir por nombre o por id,
+  // pero alguno tiene que venir.
+  for (const group of configFor(entity).requireOneOf ?? []) {
+    if (group.some((field) => mappedFields.has(field))) continue;
+    missingRequired.push(group.map(labelOf).join(' o '));
+  }
 
   const issues: RowIssue[] = [];
   const validRows: PreparedRow[] = [];
@@ -496,6 +528,16 @@ export const validateRows = ({
           break;
         }
 
+        case 'time': {
+          const minutes = parseTimeOfDay(raw);
+          if (minutes === null) {
+            warn('No se entiende la hora. Se ignora ese dato.');
+            break;
+          }
+          values[signature.field] = minutes;
+          break;
+        }
+
         case 'integer': {
           const parsed = parseNumber(raw);
           if (parsed === null || !Number.isFinite(parsed) || parsed < 1) {
@@ -523,6 +565,16 @@ export const validateRows = ({
     }
 
     if (hasError) return;
+
+    // La app vieja guarda fecha y hora por separado. Se juntan acá para que
+    // `scheduledAt` quede completo y las visitas no caigan todas a medianoche.
+    const timeOfDay = values.timeOfDay as number | undefined;
+    if (timeOfDay !== undefined && values.scheduledAt instanceof Date) {
+      const withTime = new Date(values.scheduledAt);
+      withTime.setHours(Math.floor(timeOfDay / 60), timeOfDay % 60, 0, 0);
+      values.scheduledAt = withTime;
+    }
+    delete values.timeOfDay;
 
     // Dedupe dentro del archivo, con los campos que define la entidad. La
     // comparación contra lo que ya está en la base ocurre al ejecutar, no acá.
@@ -565,7 +617,7 @@ export const validateRows = ({
 
 // ─── Resolución de clientes ────────────────────────────────────────────────
 
-export type ClientRef = { id: string; name: string };
+export type ClientRef = { id: string; name: string; externalId?: string | null };
 
 export type ResolvedRows = {
   /** Filas que encontraron su cliente, con el `clientId` ya puesto. */
@@ -696,11 +748,23 @@ export const resolveClientRefs = ({
   rows,
   clients,
   clientNameField,
+  clientExternalIdField,
 }: {
   rows: PreparedRow[];
   clients: ClientRef[];
   clientNameField: string;
+  /** Campo con el id de origen. Cuando está, se prueba antes que el nombre. */
+  clientExternalIdField?: string;
 }): ResolvedRows => {
+  // El id de origen es exacto y no depende de cómo esté escrito el nombre, así
+  // que gana siempre que esté disponible. Es lo que hace viable migrar una
+  // planilla que referencia al cliente por id, como la de la app vieja.
+  const byExternalId = new Map<string, string>();
+  for (const client of clients) {
+    const key = String(client.externalId ?? '').trim().toLowerCase();
+    if (key) byExternalId.set(key, client.id);
+  }
+
   const byName = new Map<string, string>();
   // Un nombre repetido entre clientes es ambiguo: se saca del índice para que
   // esas filas caigan como "no encontrado" en vez de elegir una al azar.
@@ -718,14 +782,21 @@ export const resolveClientRefs = ({
   const unmatchedNames = new Set<string>();
 
   for (const row of rows) {
+    const rawExternalId = clientExternalIdField
+      ? String(row.values[clientExternalIdField] ?? '').trim()
+      : '';
     const rawName = String(row.values[clientNameField] ?? '');
-    const clientId = byName.get(normalise(rawName));
+
+    const clientId =
+      (rawExternalId ? byExternalId.get(rawExternalId.toLowerCase()) : undefined) ??
+      byName.get(normalise(rawName));
 
     if (!clientId) {
-      unmatched.push({ ...row, clientName: rawName });
-      // Una celda vacía no es un nombre que no encontramos: es una fila que no
-      // declara cliente, que en gastos es lo normal. No se reporta.
-      if (rawName.trim()) unmatchedNames.add(rawName);
+      unmatched.push({ ...row, clientName: rawName || rawExternalId });
+      // Una celda vacía no es una referencia que no encontramos: es una fila que
+      // no declara cliente, que en gastos es lo normal. No se reporta.
+      const shown = rawName.trim() || rawExternalId;
+      if (shown) unmatchedNames.add(shown);
       continue;
     }
 

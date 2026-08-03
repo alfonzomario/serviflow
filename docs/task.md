@@ -489,6 +489,51 @@ Verificado contra la base: 8 filas → 7 movimientos (1 duplicado omitido), fech
 exactas leídas por partes UTC, "8.400,50" como 8400.5, y la fila con cliente
 inexistente importada igual sin enganche.
 
+### Desbloquear la migración desde la app vieja
+
+Probar el importador contra las columnas **reales** del legacy —en vez de contra
+CSVs inventados por mí— reveló que la migración no funcionaba en absoluto. Lo que
+apareció:
+
+- **La hoja `Visits` referencia al cliente por `clientId`, no por nombre**, y el
+  importador solo resolvía por nombre. Todas las filas de visitas habrían
+  quedado afuera. Ahora `Client.externalId` guarda el id de origen y la
+  resolución lo prueba **antes** que el nombre: es exacto y no depende de cómo
+  esté escrito.
+- **`relationshipType` no era alias de nada**, así que todo cliente con abono
+  entraba como ocasional y Pendientes no volvía a pedirle el período nunca.
+- **La columna `time` se ignoraba**: el legacy guarda fecha y hora separadas, así
+  que todas las visitas migradas caían a medianoche.
+- `pestTypes` tampoco era alias, ni en clientes ni en visitas.
+
+`clientName` dejó de ser obligatorio por sí solo: ahora alcanza con mapear el
+nombre **o** el id, vía `requireOneOf` en la config de la entidad.
+
+#### Dos bugs que salieron de correr la migración dos veces
+
+**El rollback dejaba reservado el `externalId`.** Con la constraint única sobre
+`(tenantId, externalId)`, reintentar una migración chocaba contra clientes
+borrados que el usuario ya no ve. Ahora el rollback libera el id junto con el
+borrado.
+
+**El `try/catch` por fila era mentira.** Postgres aborta la transacción entera
+ante cualquier sentencia fallida (`25P02`), así que atrapar el error y seguir
+solo lograba que todas las filas siguientes fallaran en cascada con un mensaje
+incomprensible. El contrato documentado es todo o nada, así que ahora se relanza
+diciendo qué fila rompió. También se deduplica por `externalId` para que el caso
+común —reimportar— no llegue nunca a ese error.
+
+#### El simulacro
+
+Clientes y visitas con las columnas exactas del legacy: 3 clientes migrados con
+su tipo de relación correcto, 6 de 7 visitas enganchadas **por id** (la de
+`cli-9999` correctamente afuera), horas preservadas, el tratamiento de 3
+aplicaciones reconstruido como `Job` y Pendientes pidiendo la 3/3.
+
+El detalle que más vale: la visita `OMITIDA_MES` entró como `SKIPPED`, así que la
+última visita de ese cliente es la del 15/03 y no la del 20/04. La regla de
+"período saldado sin visitar no cuenta como visita" sobrevive la migración.
+
 ## Next Steps
 - [ ] Use `labelRecurringAgreement` / `labelMultiVisitJob` in the remaining
       screens — the hook exists and Pendientes, the visit form and the jobs

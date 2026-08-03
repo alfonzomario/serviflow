@@ -202,6 +202,10 @@ model Client {
   /// De qué importación salió esta fila. Permite deshacer un lote entero sin
   /// tocar lo que se cargó a mano.
   importId          String?  @map("import_id") @db.Uuid
+  /// El id que este cliente tenía en el sistema del que se migró. Es lo que
+  /// permite enganchar sus visitas y movimientos, que en la planilla original
+  /// lo referencian por id y no por nombre.
+  externalId        String?  @map("external_id") @db.VarChar(100)
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
@@ -216,6 +220,9 @@ model Client {
   @@index([tenantId, status])
   @@index([tenantId, relationshipType])
   @@index([tenantId, importId])
+  // Dos clientes del mismo negocio no pueden venir del mismo id de origen.
+  // Postgres permite varios NULL, así que los cargados a mano no molestan.
+  @@unique([tenantId, externalId])
   @@map("clients")
 }
 

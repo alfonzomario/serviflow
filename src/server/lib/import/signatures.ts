@@ -17,6 +17,7 @@ export type FieldType =
   | 'date'
   | 'currency'
   | 'integer'
+  | 'time'
   | 'enum'
   | 'list';
 
@@ -55,13 +56,31 @@ export type EntityConfig = {
    */
   clientNameField?: string;
   /**
+   * El campo que trae el id que el cliente tenía en el sistema de origen. Se
+   * prueba antes que el nombre: es exacto y no depende de cómo esté escrito.
+   */
+  clientExternalIdField?: string;
+  /**
    * Si una fila sin cliente resuelto se descarta o entra igual. Una visita sin
    * cliente no significa nada; un gasto de nafta sin cliente es lo normal.
    */
   clientRequired?: boolean;
+  /**
+   * Grupos donde alcanza con que **uno** de los campos esté mapeado. Sirve para
+   * "el cliente puede venir por nombre o por id, pero alguno tiene que venir".
+   */
+  requireOneOf?: string[][];
 };
 
 const CLIENT_SIGNATURES: ColumnSignature[] = [
+  {
+    field: 'externalId',
+    label: 'ID original',
+    // `id` es como se llama la columna en la hoja Clients de la app vieja.
+    aliases: ['id', 'codigo', 'código', 'id cliente', 'client id', 'clientid', 'legacy id'],
+    type: 'string',
+    hint: 'El id que tenía en tu sistema anterior. Mapealo para que las visitas y los movimientos se enganchen solos.',
+  },
   {
     field: 'name',
     label: 'Nombre',
@@ -119,7 +138,19 @@ const CLIENT_SIGNATURES: ColumnSignature[] = [
   {
     field: 'relationshipType',
     label: 'Tipo de relación',
-    aliases: ['tipo', 'tipo de cliente', 'relacion', 'relación', 'modalidad', 'abono'],
+    // `relationshipType` es el nombre de la columna en la hoja Clients de la app
+    // vieja. Sin el alias, un cliente con abono entraba como ocasional y
+    // Pendientes no volvía a pedirle el período nunca.
+    aliases: [
+      'tipo',
+      'tipo de cliente',
+      'relacion',
+      'relación',
+      'relationshiptype',
+      'relationship type',
+      'modalidad',
+      'abono',
+    ],
     type: 'enum',
     // `ESPECIAL` es como la app vieja marca al cliente sin abono.
     enumValues: {
@@ -151,10 +182,13 @@ const CLIENT_SIGNATURES: ColumnSignature[] = [
   {
     field: 'serviceTypes',
     label: 'Servicios',
+    // `pestTypes` es el nombre de la columna en la app vieja.
     aliases: [
       'servicios',
       'servicio',
       'service types',
+      'pesttypes',
+      'pest types',
       'tipo de servicio',
       'tipos de servicio',
       'plagas',
@@ -183,6 +217,15 @@ const CLIENT_SIGNATURES: ColumnSignature[] = [
  */
 const VISIT_SIGNATURES: ColumnSignature[] = [
   {
+    field: 'clientExternalId',
+    label: 'ID del cliente',
+    // `clientId` es la columna con la que la hoja Visits de la app vieja
+    // referencia al cliente. Es más confiable que el nombre y se prueba primero.
+    aliases: ['clientid', 'client id', 'id cliente', 'id_cliente', 'codigo cliente'],
+    type: 'string',
+    hint: 'Si tu planilla referencia al cliente por id, mapeá esto en vez del nombre.',
+  },
+  {
     field: 'clientName',
     label: 'Cliente',
     aliases: [
@@ -195,7 +238,8 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
       'nombre del cliente',
     ],
     type: 'string',
-    required: true,
+    // No es obligatorio por sí solo: alcanza con mapear el nombre *o* el id.
+    // Eso lo controla `requireOneOf` en la config de la entidad.
     hint: 'Se busca por nombre entre los clientes que ya tenés cargados.',
   },
   {
@@ -213,6 +257,15 @@ const VISIT_SIGNATURES: ColumnSignature[] = [
     ],
     type: 'date',
     required: true,
+  },
+  {
+    field: 'timeOfDay',
+    label: 'Hora',
+    // La app vieja guarda fecha y hora en columnas separadas. Sin esto todas
+    // las visitas migradas caían a medianoche.
+    aliases: ['hora', 'time', 'horario', 'hs'],
+    type: 'time',
+    hint: 'Si tu planilla tiene la hora en otra columna, mapeala acá.',
   },
   {
     field: 'serviceType',
@@ -394,9 +447,11 @@ export const ENTITIES: Record<ImportEntity, EntityConfig> = {
     description:
       'El historial de trabajos hechos. Importalo después de los clientes: cada visita se engancha al cliente por nombre.',
     fields: VISIT_SIGNATURES,
-    dedupeFields: ['clientName', 'scheduledAt', 'serviceType'],
+    dedupeFields: ['clientExternalId', 'clientName', 'scheduledAt', 'serviceType'],
     clientNameField: 'clientName',
+    clientExternalIdField: 'clientExternalId',
     clientRequired: true,
+    requireOneOf: [['clientExternalId', 'clientName']],
   },
   transactions: {
     label: 'Movimientos',

@@ -7,6 +7,7 @@ import {
   parseImportDate,
   parseList,
   parseNumber,
+  parseTimeOfDay,
   groupIntoJobs,
   resolveClientRefs,
   parseEnum,
@@ -128,9 +129,16 @@ describe('autoMapColumns', () => {
   });
 
   it('deja sin mapear lo que no reconoce', () => {
-    const mappings = autoMapColumns(['Nombre', 'Código interno'], 'clients');
+    const mappings = autoMapColumns(['Nombre', 'Zona'], 'clients');
 
     expect(mappings[1]).toMatchObject({ targetField: null, confidence: 'none' });
+  });
+
+  it('reconoce la columna de id del sistema anterior', () => {
+    // "Código interno" es un id de origen, no una columna a ignorar.
+    const mappings = autoMapColumns(['Nombre', 'Código interno'], 'clients');
+
+    expect(mappings[1].targetField).toBe('externalId');
   });
 
   it('no inventa coincidencias con alias muy cortos', () => {
@@ -346,7 +354,7 @@ describe('validateRows', () => {
   });
 
   it('ignora las columnas sin mapear', () => {
-    const result = build('Nombre,Código interno\nAna,ABC-123');
+    const result = build('Nombre,Zona\nAna,Norte');
 
     expect(result.validRows[0].values).toEqual({ name: 'Ana' });
   });
@@ -378,9 +386,9 @@ describe('visitas', () => {
     })
   })
 
-  it('exige cliente y fecha', () => {
+  it('exige fecha, y el cliente por nombre o por id', () => {
     expect(build('Servicio\nFumigación').missingRequired).toEqual(
-      expect.arrayContaining(['Cliente', 'Fecha'])
+      expect.arrayContaining(['Fecha', 'ID del cliente o Cliente'])
     )
   })
 
@@ -752,5 +760,111 @@ describe('encabezados cortos', () => {
 
     expect(mappings[0].targetField).toBeNull()
     expect(mappings[1].targetField).toBe('visitType')
+  })
+})
+
+describe('parseTimeOfDay', () => {
+  it('entiende los formatos usuales', () => {
+    expect(parseTimeOfDay('09:00')).toBe(9 * 60)
+    expect(parseTimeOfDay('14:30')).toBe(14 * 60 + 30)
+    expect(parseTimeOfDay('9')).toBe(9 * 60)
+    expect(parseTimeOfDay('9.30')).toBe(9 * 60 + 30)
+    expect(parseTimeOfDay('08:00:00')).toBe(8 * 60)
+  })
+
+  it('entiende am/pm', () => {
+    expect(parseTimeOfDay('2:30 pm')).toBe(14 * 60 + 30)
+    expect(parseTimeOfDay('12:00 am')).toBe(0)
+    expect(parseTimeOfDay('12:00 pm')).toBe(12 * 60)
+  })
+
+  it('rechaza lo que no es una hora', () => {
+    expect(parseTimeOfDay('25:00')).toBeNull()
+    expect(parseTimeOfDay('10:75')).toBeNull()
+    expect(parseTimeOfDay('a la tarde')).toBeNull()
+    expect(parseTimeOfDay('')).toBeNull()
+  })
+})
+
+describe('migración desde la app vieja', () => {
+  it('junta la fecha y la hora, que el legacy guarda separadas', () => {
+    // Sin esto todas las visitas migradas caían a medianoche.
+    const { headers, rows } = parseDelimited(
+      'clientId,date,time\ncli-1,2026-02-15,14:30'
+    )
+    const result = validateRows({
+      rows,
+      mappings: autoMapColumns(headers, 'visits'),
+      entity: 'visits',
+    })
+
+    const when = result.validRows[0].values.scheduledAt as Date
+    expect(when.getHours()).toBe(14)
+    expect(when.getMinutes()).toBe(30)
+    // La hora no queda como campo suelto.
+    expect(result.validRows[0].values).not.toHaveProperty('timeOfDay')
+  })
+
+  it('acepta el cliente por id o por nombre, pero exige alguno', () => {
+    const soloId = parseDelimited('clientId,date\ncli-1,2026-02-15')
+    expect(
+      validateRows({
+        rows: soloId.rows,
+        mappings: autoMapColumns(soloId.headers, 'visits'),
+        entity: 'visits',
+      }).missingRequired
+    ).toEqual([])
+
+    const ninguno = parseDelimited('date,price\n2026-02-15,100')
+    expect(
+      validateRows({
+        rows: ninguno.rows,
+        mappings: autoMapColumns(ninguno.headers, 'visits'),
+        entity: 'visits',
+      }).missingRequired
+    ).toContain('ID del cliente o Cliente')
+  })
+
+  it('engancha por el id de origen antes que por el nombre', () => {
+    const clients = [
+      { id: 'uuid-1', name: 'Panadería del Sol', externalId: 'cli-0007' },
+      { id: 'uuid-2', name: 'Otro', externalId: 'cli-0012' },
+    ]
+
+    const result = resolveClientRefs({
+      rows: [
+        { row: 1, dedupeKey: '1', values: { clientExternalId: 'cli-0007' } },
+        // El id manda aunque el nombre apunte a otro cliente: es exacto.
+        { row: 2, dedupeKey: '2', values: { clientExternalId: 'cli-0012', clientName: 'Panadería del Sol' } },
+      ],
+      clients,
+      clientNameField: 'clientName',
+      clientExternalIdField: 'clientExternalId',
+    })
+
+    expect(result.resolved.map((r) => r.clientId)).toEqual(['uuid-1', 'uuid-2'])
+  })
+
+  it('cae al nombre cuando la fila no trae id', () => {
+    const result = resolveClientRefs({
+      rows: [{ row: 1, dedupeKey: '1', values: { clientName: 'Panadería del Sol' } }],
+      clients: [{ id: 'uuid-1', name: 'Panadería del Sol', externalId: 'cli-0007' }],
+      clientNameField: 'clientName',
+      clientExternalIdField: 'clientExternalId',
+    })
+
+    expect(result.resolved[0].clientId).toBe('uuid-1')
+  })
+
+  it('reporta el id cuando no encuentra al cliente y no hay nombre', () => {
+    const result = resolveClientRefs({
+      rows: [{ row: 1, dedupeKey: '1', values: { clientExternalId: 'cli-9999' } }],
+      clients: [{ id: 'uuid-1', name: 'Otro', externalId: 'cli-0007' }],
+      clientNameField: 'clientName',
+      clientExternalIdField: 'clientExternalId',
+    })
+
+    expect(result.resolved).toHaveLength(0)
+    expect(result.unmatchedNames).toEqual(['cli-9999'])
   })
 })
