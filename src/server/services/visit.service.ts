@@ -5,11 +5,11 @@ import { buildPendingItems, checkApplicationGap } from './pending';
 
 // Valid status transitions (state machine)
 const STATUS_TRANSITIONS: Record<VisitStatus, VisitStatus[]> = {
-  PENDING_CONFIRM: ['CONFIRMED', 'CANCELLED'],
+  PENDING_CONFIRM: ['CONFIRMED', 'COMPLETED', 'CANCELLED', 'SKIPPED'],
   CONFIRMED: ['COMPLETED', 'CANCELLED', 'SKIPPED', 'PENDING_CONFIRM'],
-  COMPLETED: [], // Terminal state
-  CANCELLED: ['PENDING_CONFIRM'], // Can be re-opened
-  SKIPPED: ['PENDING_CONFIRM'], // Can be re-opened
+  COMPLETED: ['CONFIRMED', 'PENDING_CONFIRM'],
+  CANCELLED: ['PENDING_CONFIRM', 'CONFIRMED'],
+  SKIPPED: ['PENDING_CONFIRM', 'CONFIRMED'],
 };
 
 export const validateStatusTransition = (

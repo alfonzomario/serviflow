@@ -247,4 +247,21 @@ export const jobsRouter = router({
 
       return deleted;
     }),
+
+  /** Bulk deletes multiple jobs by array of IDs, or deletes all legacy jobs */
+  deleteMany: permissionProcedure('agenda', 'write')
+    .input(z.object({ ids: z.array(z.string().uuid()).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const whereClause =
+        input.ids && input.ids.length > 0
+          ? { id: { in: input.ids }, ...tenantWhere(ctx.tenantId) }
+          : { ...tenantWhere(ctx.tenantId) };
+
+      const updated = await ctx.db.job.updateMany({
+        where: whereClause,
+        data: { deletedAt: new Date(), closedAt: new Date() },
+      });
+
+      return { count: updated.count };
+    }),
 });

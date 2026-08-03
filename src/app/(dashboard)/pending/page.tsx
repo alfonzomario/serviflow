@@ -13,6 +13,7 @@ import {
   Repeat,
   CheckCheck,
   XCircle,
+  Trash2,
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -127,6 +128,35 @@ export default function PendingPage() {
     </Button>
   )
 
+  const [selectedJobIds, setSelectedJobIds] = React.useState<string[]>([])
+
+  const bulkDeleteJobs = trpc.jobs.deleteMany.useMutation({
+    onSuccess: async (res) => {
+      toast.success(`${res.count} aplicaciones de tratamientos eliminadas`)
+      setSelectedJobIds([])
+      await utils.visits.invalidate()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const toggleSelectJob = (jobId: string) => {
+    setSelectedJobIds((current) =>
+      current.includes(jobId) ? current.filter((id) => id !== jobId) : [...current, jobId]
+    )
+  }
+
+  const toggleSelectAllJobs = () => {
+    const allJobIds = applications
+      .filter((item): item is typeof item & { kind: "MISSING_APPLICATION" } => item.kind === "MISSING_APPLICATION")
+      .map((item) => item.jobId)
+
+    if (selectedJobIds.length === allJobIds.length) {
+      setSelectedJobIds([])
+    } else {
+      setSelectedJobIds(allJobIds)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -181,7 +211,6 @@ export default function PendingPage() {
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {recurring.map((item) => {
                   if (item.kind !== "RECURRING_SERVICE") return null
-                  const itemDue = new Date(item.dueAt)
 
                   return (
                     <Card
@@ -256,58 +285,109 @@ export default function PendingPage() {
           </section>
 
           <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Repeat className="h-4 w-4 text-indigo-500" />
-              <h2 className="font-semibold">Próxima aplicación de {labels.multiVisit.toLowerCase()}s</h2>
-              <Badge variant="secondary">{applications.length}</Badge>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-indigo-500" />
+                <h2 className="font-semibold">Segundas / Próximas aplicaciones de tratamientos</h2>
+                <Badge variant="secondary">{applications.length}</Badge>
+              </div>
+
+              {applications.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-8"
+                    onClick={toggleSelectAllJobs}
+                  >
+                    {selectedJobIds.length === applications.length
+                      ? "Desmarcar todas"
+                      : "Seleccionar todas"}
+                  </Button>
+
+                  {selectedJobIds.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-8 text-xs gap-1.5"
+                      disabled={bulkDeleteJobs.isPending}
+                      onClick={() => bulkDeleteJobs.mutate({ ids: selectedJobIds })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Eliminar ({selectedJobIds.length})
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs text-destructive border-destructive/20 hover:bg-destructive/10"
+                    disabled={bulkDeleteJobs.isPending}
+                    onClick={() => bulkDeleteJobs.mutate({})}
+                  >
+                    Limpiar todas las viejas
+                  </Button>
+                </div>
+              )}
             </div>
 
             {applications.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                {`No hay ${labels.multiVisit.toLowerCase()}s con aplicaciones por agendar.`}
+                No hay tratamientos con aplicaciones pendientes por agendar.
               </p>
             ) : (
               <div className="grid gap-3">
                 {applications.map((item) => {
                   if (item.kind !== "MISSING_APPLICATION") return null
+                  const isSelected = selectedJobIds.includes(item.jobId)
 
                   return (
                     <Card
                       key={item.jobId}
                       className={
-                        item.notYetDue
+                        isSelected
+                          ? "rounded-2xl border-l-4 border-l-red-500 border-red-500/50 bg-red-500/5 p-4 shadow-md"
+                          : item.notYetDue
                           ? "rounded-2xl border-l-4 border-l-indigo-500/40 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 opacity-60"
                           : "rounded-2xl border-l-4 border-l-indigo-500 border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-md"
                       }
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 space-y-1">
-                          <h3 className="font-medium">{item.client.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {item.serviceType ?? labels.multiVisit} — falta agendar la aplicación{" "}
-                            <strong>
-                              {item.applicationNumber} de {item.totalApplications}
-                            </strong>
-                          </p>
-                          {item.previousApplicationAt && (
-                            <p className="text-xs text-muted-foreground">
-                              Aplicación {item.applicationNumber - 1}:{" "}
-                              {formatDate(item.previousApplicationAt)}
+                        <div className="flex items-start gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded accent-indigo-600 cursor-pointer"
+                            checked={isSelected}
+                            onChange={() => toggleSelectJob(item.jobId)}
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="font-medium">{item.client.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {item.serviceType ?? "Tratamiento"} — falta agendar la aplicación{" "}
+                              <strong>
+                                {item.applicationNumber} de {item.totalApplications}
+                              </strong>
                             </p>
-                          )}
-                          {item.earliestAt && (
-                            <p
-                              className={
-                                item.notYetDue
-                                  ? "flex items-center gap-1.5 text-xs text-muted-foreground"
-                                  : "flex items-center gap-1.5 text-xs font-medium text-amber-600"
-                              }
-                            >
-                              <Clock className="h-3 w-3" />
-                              Hacerla a partir del {formatDate(item.earliestAt)}
-                              {item.notYetDue && " — todavía no toca"}
-                            </p>
-                          )}
+                            {item.previousApplicationAt && (
+                              <p className="text-xs text-muted-foreground">
+                                Aplicación {item.applicationNumber - 1}:{" "}
+                                {formatDate(item.previousApplicationAt)}
+                              </p>
+                            )}
+                            {item.earliestAt && (
+                              <p
+                                className={
+                                  item.notYetDue
+                                    ? "flex items-center gap-1.5 text-xs text-muted-foreground"
+                                    : "flex items-center gap-1.5 text-xs font-medium text-amber-600"
+                                }
+                              >
+                                <Clock className="h-3 w-3" />
+                                Hacerla a partir del {formatDate(item.earliestAt)}
+                                {item.notYetDue && " — todavía no toca"}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex shrink-0 gap-2">
