@@ -46,6 +46,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Se registra recién acá, con la contraseña ya validada: un intento
+        // fallido no es un ingreso. Es una columna, no una fila de auditoría —
+        // un log por login crecería sin techo y no aporta nada que esto no diga.
+        // Si falla, no se cae el login: es un dato informativo, no el permiso.
+        await db.user
+          .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+          .catch(() => undefined);
+
         return {
           id: user.id,
           email: user.email,

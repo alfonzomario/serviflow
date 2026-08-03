@@ -11,7 +11,15 @@ import type { Prisma } from '@prisma/client';
  * written as a side effect of the operations it records, never by hand.
  */
 
-const ENTITY_TYPES = ['visit', 'job', 'client', 'request', 'transaction', 'user'] as const;
+const ENTITY_TYPES = [
+  'visit',
+  'job',
+  'client',
+  'request',
+  'transaction',
+  'note',
+  'user',
+] as const;
 
 const ACTIONS = [
   'CREATE',

@@ -1,4 +1,4 @@
-import { router, tenantProcedure, ownerProcedure } from '../trpc';
+import { router, tenantProcedure, ownerProcedure, permissionProcedure } from '../trpc';
 import { z } from 'zod';
 import { tenantOnly } from '../../lib/tenant-context';
 import { TRPCError } from '@trpc/server';
@@ -58,7 +58,14 @@ const userSelect = {
 } as const;
 
 export const usersRouter = router({
-  list: tenantProcedure.query(async ({ ctx }) => {
+  /**
+   * La ficha completa del equipo: emails, roles y la matriz de permisos de cada
+   * uno. Va detrás de `team.read` y no de `tenantProcedure` — que el menú
+   * esconda Equipo no protege nada, y esto devuelve justo lo que un operador no
+   * tiene por qué ver, incluida la matriz que dice qué puede tocar cada rol.
+   * Para asignar una visita está `assignable`, que devuelve solo nombres.
+   */
+  list: permissionProcedure('team', 'read').query(async ({ ctx }) => {
     return ctx.db.user.findMany({
       where: tenantOnly(ctx.tenantId),
       select: userSelect,
@@ -66,7 +73,11 @@ export const usersRouter = router({
     });
   }),
 
-  /** Operators available to assign to a visit. */
+  /**
+   * Solo id, nombre y rol de quienes pueden recibir una visita. Cualquiera que
+   * pueda escribir en la agenda lo necesita, así que queda en `tenantProcedure`
+   * a propósito: no expone contacto, permisos ni estado.
+   */
   assignable: tenantProcedure.query(async ({ ctx }) => {
     return ctx.db.user.findMany({
       where: {

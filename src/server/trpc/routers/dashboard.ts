@@ -1,5 +1,6 @@
 import { router, tenantProcedure } from '../trpc';
 import { tenantWhere } from '../../lib/tenant-context';
+import { checkPermission } from '../../lib/permissions';
 
 /** Percentage change from `previous` to `current`, null when there is no base. */
 const trend = (current: number, previous: number): number | null => {
@@ -64,8 +65,17 @@ export const dashboardRouter = router({
     const revenue = Number(revenueThisMonth._sum.amount ?? 0);
     const prevRevenue = Number(revenuePrevMonth._sum.amount ?? 0);
 
+    // El Panel lo abre todo el mundo, así que el procedimiento no puede exigir
+    // `finance.read`. Pero la facturación sí: un operador tiene la matriz en
+    // false para finanzas, y devolverle el número igual sería contradecirla
+    // desde el único lugar que ningún menú esconde. Se omite el campo en vez de
+    // mandarlo en cero, que se leería como "no facturaste nada este mes".
+    const canSeeMoney = checkPermission(ctx.session, 'finance', 'read');
+
     return {
-      revenue: { value: revenue, trend: trend(revenue, prevRevenue) },
+      revenue: canSeeMoney
+        ? { value: revenue, trend: trend(revenue, prevRevenue) }
+        : null,
       pendingVisits,
       completedVisits: {
         value: completedThisMonth,

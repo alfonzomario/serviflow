@@ -4,6 +4,7 @@ import Link from "next/link"
 import { DollarSign, Clock, CheckCircle2, Users, CalendarDays } from "lucide-react"
 
 import { trpc } from "@/lib/trpc"
+import { usePermissions } from "@/hooks/usePermissions"
 import { formatCurrency, formatLongDateTime } from "@/lib/format"
 import { KPICard } from "@/components/dashboard/KPICard"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -19,9 +20,18 @@ const toTrend = (value: number | null | undefined) => {
 }
 
 export default function DashboardPage() {
+  const { can } = usePermissions()
+  // `monthlySummary` ya exige `finance.read` en el servidor, así que a un
+  // operador le respondería 403. Se evita pedirlo para no dejar una tarjeta
+  // vacía que nunca se va a llenar ni un error en la consola.
+  const canSeeMoney = can("finance", "read")
+
   const kpis = trpc.dashboard.kpis.useQuery()
   const upcoming = trpc.dashboard.upcomingVisits.useQuery()
-  const monthly = trpc.transactions.monthlySummary.useQuery({ months: 7 })
+  const monthly = trpc.transactions.monthlySummary.useQuery(
+    { months: 7 },
+    { enabled: canSeeMoney }
+  )
 
   const maxRevenue = Math.max(1, ...(monthly.data?.map((month) => month.income) ?? [0]))
 
@@ -33,13 +43,18 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Facturado este mes"
-          value={kpis.data ? formatCurrency(kpis.data.revenue.value) : "—"}
-          icon={DollarSign}
-          trend={toTrend(kpis.data?.revenue.trend)}
-          variant="primary"
-        />
+        {/* El servidor manda `revenue` en null a quien no puede ver finanzas.
+            La tarjeta no se muestra en vez de mostrarse vacía: un "—" invita a
+            preguntar por qué no carga algo que en realidad no corresponde ver. */}
+        {kpis.data?.revenue !== null && (
+          <KPICard
+            title="Facturado este mes"
+            value={kpis.data ? formatCurrency(kpis.data.revenue.value) : "—"}
+            icon={DollarSign}
+            trend={toTrend(kpis.data?.revenue.trend)}
+            variant="primary"
+          />
+        )}
         <KPICard
           title="Visitas por hacer"
           value={kpis.data ? String(kpis.data.pendingVisits) : "—"}
@@ -61,6 +76,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        {canSeeMoney && (
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Ingresos por mes</CardTitle>
@@ -95,8 +111,9 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
-        <Card className="lg:col-span-3">
+        <Card className={canSeeMoney ? "lg:col-span-3" : "lg:col-span-7"}>
           <CardHeader>
             <CardTitle>Próximas visitas</CardTitle>
             <CardDescription>Las próximas 48 horas</CardDescription>

@@ -55,10 +55,19 @@ const ENTITY_LABELS: Record<string, string> = {
   client: "Cliente",
   request: "Solicitud",
   transaction: "Movimiento",
+  note: "Nota",
   user: "Usuario",
 }
 
-const ENTITY_OPTIONS = ["visit", "job", "client", "request", "transaction", "user"] as const
+const ENTITY_OPTIONS = [
+  "visit",
+  "job",
+  "client",
+  "request",
+  "transaction",
+  "note",
+  "user",
+] as const
 
 // LOGIN, SCHEDULE and ARCHIVE exist in `AuditAction` but nothing writes them
 // yet, so they are not offered: a filter that can never match reads like a bug.
