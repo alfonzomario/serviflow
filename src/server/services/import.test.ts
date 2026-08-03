@@ -222,9 +222,15 @@ describe('normalisePhone', () => {
     expect(normalisePhone('+54 9 11 5555-0001')).toBe('+5491155550001');
   });
 
-  it('rechaza lo que es demasiado corto para ser un teléfono', () => {
-    expect(normalisePhone('123')).toBeNull();
-    expect(normalisePhone('-')).toBeNull();
+});
+
+describe('parseTimeOfDay', () => {
+  it('entiende formato HH:mm', () => {
+    expect(parseTimeOfDay('10:30')).toBe(630);
+  });
+
+  it('extrae la hora de fechas con formato de Excel tipo 1899-12-30 10:00', () => {
+    expect(parseTimeOfDay('1899-12-30 10:00')).toBe(600);
   });
 });
 

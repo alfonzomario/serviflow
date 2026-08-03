@@ -384,8 +384,16 @@ export const parseImportDate = (raw: string): Date | null => {
  * "9.30" y el sufijo am/pm.
  */
 export const parseTimeOfDay = (raw: string): number | null => {
-  const value = raw.trim().toLowerCase();
+  let value = raw.trim().toLowerCase();
   if (!value) return null;
+
+  // Si viene una fecha completa con hora (ej: "1899-12-30 10:00:00" de Excel),
+  // tomar solo la parte de la hora después del espacio o 'T' para evitar que
+  // el año '1899' sea matcheado como hora 18.
+  const timePart = value.match(/[T\s](\d{1,2}:.+)$/);
+  if (timePart) {
+    value = timePart[1];
+  }
 
   const match = value.match(/^(\d{1,2})(?:[:.h](\d{1,2}))?(?::\d{1,2})?\s*(am|pm)?/);
   if (!match) return null;
