@@ -54,6 +54,7 @@
     "next-intl": "^3.26.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "read-excel-file": "^9.3.5",
     "sonner": "^1.7.1",
     "superjson": "^2.2.2",
     "tailwind-merge": "^2.6.0",

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { tenantOnly, tenantWhere } from '../../lib/tenant-context';
 import {
   autoMapColumns,
+  googleSheetCsvUrl,
   parseDelimited,
   resolveClientRefs,
   validateRows,
@@ -111,6 +112,61 @@ export const importRouter = router({
       }))
     ),
 
+  /**
+   * Trae una planilla de Google como CSV.
+   *
+   * Lo hace el servidor porque el navegador no puede pedirle a `docs.google.com`
+   * por CORS. La URL **se reconstruye** desde el id de la planilla en vez de
+   * reenviar la que mandó el cliente: sin eso esto sería un SSRF con permiso de
+   * importar. `googleSheetCsvUrl` valida host y ruta, y está testeada aparte.
+   */
+  fromGoogleSheet: permissionProcedure('settings', 'write')
+    .input(z.object({ url: z.string().max(2000) }))
+    .mutation(async ({ input }) => {
+      const csvUrl = googleSheetCsvUrl(input.url);
+      if (!csvUrl) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Ese link no parece de Google Sheets. Copiá el de la barra de direcciones con la planilla abierta.',
+        });
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(csvUrl, {
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'No se pudo contactar a Google. Probá de nuevo en un momento.',
+        });
+      }
+
+      // Google contesta con un HTML de login cuando la planilla es privada, así
+      // que un 200 no alcanza para saber que salió bien.
+      const isCsv = (response.headers.get('content-type') ?? '').includes('text/csv');
+      if (!response.ok || !isCsv) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'La planilla no es pública. En Google Sheets: Compartir → Acceso general → "Cualquier persona con el enlace".',
+        });
+      }
+
+      const content = await response.text();
+      if (content.length > MAX_CONTENT) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'La planilla es demasiado grande. Descargala como CSV y subila por partes.',
+        });
+      }
+
+      return { content };
+    }),
+
   /** Paso 1→2: lee encabezados, propone el mapeo y devuelve una muestra. */
   analyze: permissionProcedure('settings', 'write')
     .input(
@@ -192,6 +248,11 @@ export const importRouter = router({
         mappings: z.array(MappingSchema),
         strategy: StrategyEnum.default('SKIP'),
         fileName: z.string().max(255).nullish(),
+        /**
+         * Crea los clientes que la planilla menciona y no existen, en vez de
+         * descartar esas filas. Solo aplica donde el cliente es obligatorio.
+         */
+        createMissingClients: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -224,12 +285,74 @@ export const importRouter = router({
         totalRows: result.totalRows,
       };
 
+      /**
+       * Resuelve los clientes de una entidad que los exige, creando los que
+       * falten si el usuario lo pidió.
+       *
+       * Los clientes nuevos se cargan como **una importación aparte**, con su
+       * propio id y su propia fila en el historial. No es un descuido: cada
+       * executor abre su transacción, así que meterlos en la misma sería
+       * reescribir los tres. Como lote separado quedan visibles y se pueden
+       * deshacer solos — que es mejor que enterrarlos dentro de otra
+       * importación. La contrapartida, que la UI dice, es que si después falla
+       * la importación principal los clientes quedan creados.
+       */
+      const resolveWithOptionalCreate = async (entity: ImportEntity) => {
+        const config = configFor(entity);
+        let resolution = await resolveForEntity(ctx.tenantId, entity, result.validRows);
+
+        if (
+          input.createMissingClients &&
+          resolution &&
+          resolution.unmatched.length > 0 &&
+          config.clientNameField
+        ) {
+          // Uno por nombre, no uno por fila: veinte visitas del mismo cliente
+          // nuevo tienen que crear un cliente, no veinte.
+          const seen = new Set<string>();
+          const newClients: PreparedRow[] = [];
+
+          for (const row of resolution.unmatched) {
+            const name = String(row.values[config.clientNameField] ?? '').trim();
+            const externalId = config.clientExternalIdField
+              ? String(row.values[config.clientExternalIdField] ?? '').trim()
+              : '';
+
+            // Sin nombre no hay cliente que crear: un id suelto daría una ficha
+            // vacía que nadie puede identificar después.
+            if (!name) continue;
+
+            const key = (externalId || name).toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            newClients.push({
+              row: row.row,
+              values: { name, ...(externalId && { externalId }) },
+              dedupeKey: key,
+            });
+          }
+
+          if (newClients.length > 0) {
+            await executeClientImport({
+              ...common,
+              rows: newClients,
+              strategy: 'SKIP',
+              fileName: input.fileName ? `${input.fileName} (clientes nuevos)` : null,
+              totalRows: newClients.length,
+              errorRows: 0,
+            });
+
+            // Se vuelve a resolver contra la base ya actualizada.
+            resolution = await resolveForEntity(ctx.tenantId, entity, result.validRows);
+          }
+        }
+
+        return resolution;
+      };
+
       if (input.entity === 'visits') {
-        const resolution = await resolveForEntity(
-          ctx.tenantId,
-          'visits',
-          result.validRows
-        );
+        const resolution = await resolveWithOptionalCreate('visits');
 
         if (!resolution || resolution.resolved.length === 0) {
           throw new TRPCError({
@@ -267,11 +390,7 @@ export const importRouter = router({
       }
 
       if (input.entity === 'requests') {
-        const resolution = await resolveForEntity(
-          ctx.tenantId,
-          'requests',
-          result.validRows
-        );
+        const resolution = await resolveWithOptionalCreate('requests');
 
         if (!resolution || resolution.resolved.length === 0) {
           throw new TRPCError({

@@ -7,14 +7,17 @@ import {
   CheckCircle2,
   FileUp,
   Loader2,
+  Table2,
   Upload,
   XCircle,
 } from "lucide-react"
 
 import { trpc } from "@/lib/trpc"
+import { loadWorkbook, type LoadedWorkbook } from "@/lib/import/workbook"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Table,
@@ -88,7 +91,7 @@ const STRATEGIES: { value: Strategy; label: string; hint: string }[] = [
   },
 ]
 
-type Step = "upload" | "map" | "preview" | "done"
+type Step = "upload" | "sheet" | "map" | "preview" | "done"
 
 export function ImportWizard({ onImported }: { onImported?: () => void }) {
   const utils = trpc.useUtils()
@@ -101,10 +104,23 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   const [sample, setSample] = React.useState<string[][]>([])
   const [strategy, setStrategy] = React.useState<Strategy>("SKIP")
   const [dragging, setDragging] = React.useState(false)
+  const [sheetUrl, setSheetUrl] = React.useState("")
+  const [createMissingClients, setCreateMissingClients] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  /** Solo se usa mientras el usuario elige hoja en un Excel de varias. */
+  const [workbook, setWorkbook] = React.useState<LoadedWorkbook | null>(null)
 
   const entities = trpc.import.entities.useQuery()
   const fields = trpc.import.fields.useQuery({ entity })
+
+  const fromGoogleSheet = trpc.import.fromGoogleSheet.useMutation({
+    onSuccess: (data) => {
+      setFileName("Google Sheets")
+      setContent(data.content)
+      analyze.mutate({ entity, content: data.content })
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  })
 
   const analyze = trpc.import.analyze.useMutation({
     onSuccess: (data) => {
@@ -141,6 +157,10 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
     setSample([])
     setStrategy("SKIP")
     setError(null)
+    setWorkbook(null)
+    setSheetUrl("")
+    setCreateMissingClients(false)
+    fromGoogleSheet.reset()
     analyze.reset()
     preview.reset()
     execute.reset()
@@ -149,15 +169,34 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
   async function readFile(file: File) {
     setError(null)
 
-    if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
-      setError(
-        "Por ahora solo CSV. Desde Excel o Google Sheets: Archivo → Descargar → CSV."
-      )
+    if (!/\.(csv|tsv|txt|xlsx?)$/i.test(file.name)) {
+      setError("Formato no reconocido. Se aceptan CSV, TSV y Excel (.xlsx).")
       return
     }
 
-    const text = await file.text()
-    setFileName(file.name)
+    try {
+      const loaded = await loadWorkbook(file)
+      setFileName(file.name)
+
+      // Con varias hojas no se puede adivinar cuál quiere: importar la primera
+      // en silencio sería cargar los datos equivocados sin que se note.
+      if (loaded.sheets.length > 1) {
+        setWorkbook(loaded)
+        setStep("sheet")
+        return
+      }
+
+      await useSheet(loaded, loaded.sheets[0].index)
+    } catch {
+      setError(
+        "No se pudo leer el archivo. Si es un .xls viejo, abrilo en Excel y guardalo como .xlsx."
+      )
+    }
+  }
+
+  /** Toma una hoja concreta y arranca el análisis con su contenido. */
+  async function useSheet(loaded: LoadedWorkbook, sheetIndex: number) {
+    const text = await loaded.read(sheetIndex)
     setContent(text)
     analyze.mutate({ entity, content: text })
   }
@@ -243,14 +282,14 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           ) : (
             <>
               <FileUp className="mb-4 h-10 w-10 text-muted-foreground" />
-              <p className="mb-1 font-medium">Arrastrá tu archivo CSV acá</p>
+              <p className="mb-1 font-medium">Arrastrá tu archivo acá</p>
               <p className="mb-4 text-sm text-muted-foreground">
-                Desde Excel o Google Sheets: Archivo → Descargar → CSV
+                Excel (.xlsx) o CSV. Desde Google Sheets: Archivo → Descargar.
               </p>
               <label>
                 <input
                   type="file"
-                  accept=".csv,.tsv,.txt"
+                  accept=".csv,.tsv,.txt,.xlsx,.xls"
                   className="hidden"
                   onChange={(event) => {
                     const file = event.target.files?.[0]
@@ -268,6 +307,50 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           )}
         </div>
 
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">o pegá un link</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="sheetUrl">Google Sheets</Label>
+          <div className="flex gap-2">
+            <Input
+              id="sheetUrl"
+              placeholder="https://docs.google.com/spreadsheets/d/…"
+              value={sheetUrl}
+              onChange={(event) => setSheetUrl(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && sheetUrl.trim()) {
+                  event.preventDefault()
+                  setError(null)
+                  fromGoogleSheet.mutate({ url: sheetUrl })
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!sheetUrl.trim() || fromGoogleSheet.isPending}
+              onClick={() => {
+                setError(null)
+                fromGoogleSheet.mutate({ url: sheetUrl })
+              }}
+            >
+              {fromGoogleSheet.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Traer"
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            La planilla tiene que estar compartida como “cualquier persona con el
+            enlace puede ver”. Trae la hoja que esté abierta en el link.
+          </p>
+        </div>
+
         {error && (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -278,6 +361,54 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
           El archivo se procesa en el momento y no se guarda. Nada se escribe hasta que
           confirmes en el último paso.
         </p>
+      </div>
+    )
+  }
+
+  // ── Paso 1b: elegir hoja (solo si el Excel trae varias) ──────────────────
+  if (step === "sheet") {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">¿Qué hoja querés importar?</h2>
+            <p className="text-sm text-muted-foreground">
+              {fileName} tiene {workbook?.sheets.length} hojas. Se importa de a una;
+              para traer varias, repetí el proceso con cada una.
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={reset}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Cambiar archivo
+          </Button>
+        </div>
+
+        {analyze.isPending ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Leyendo la hoja…
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {workbook?.sheets.map((sheet) => (
+              <button
+                key={sheet.index}
+                type="button"
+                onClick={() => workbook && useSheet(workbook, sheet.index)}
+                className="flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors hover:border-primary hover:bg-primary/5"
+              >
+                <Table2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate font-medium">{sheet.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     )
   }
@@ -464,6 +595,23 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
                       Importá primero esos clientes, o corregí el nombre en la planilla para
                       que coincida.
                     </p>
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={createMissingClients}
+                        onChange={(event) =>
+                          setCreateMissingClients(event.target.checked)
+                        }
+                      />
+                      <span>
+                        Crear esos clientes y no perder las filas.
+                        <span className="block text-xs text-muted-foreground">
+                          Quedan como una importación aparte, con solo el nombre
+                          cargado. Podés deshacerla por separado.
+                        </span>
+                      </span>
+                    </label>
                   </>
                 ) : (
                   <p className="text-sm">
@@ -582,7 +730,14 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
             disabled={counts.valid === 0 || execute.isPending}
             onClick={() => {
               setError(null)
-              execute.mutate({ entity, content, mappings, strategy, fileName })
+              execute.mutate({
+                entity,
+                content,
+                mappings,
+                strategy,
+                fileName,
+                createMissingClients,
+              })
             }}
           >
             {execute.isPending

@@ -27,7 +27,7 @@ instalación de PostgreSQL 14 previa del sistema.
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 163 tests
+npm test             # 183 tests
 npx tsc --noEmit
 npx prisma db push
 npx prisma db seed   # idempotente
@@ -95,9 +95,39 @@ Solicitudes, Pendientes, Finanzas, Notas, Equipo, Historial, Importar, Ajustes,
 Onboarding. **El nav no linkea a nada que no exista**: el Asesor IA sale recién
 cuando tenga página.
 
-**Importador** — el wizard de la Fase 5, funcionando para **las seis entidades
-del legacy**: clientes, visitas, movimientos, solicitudes, notas y equipo. Subir
-CSV → mapeo automático → preview con avisos → importar → deshacer.
+**Importador** — el wizard de la Fase 5, completo. Las **seis entidades del
+legacy** (clientes, visitas, movimientos, solicitudes, notas, equipo) desde
+**CSV, Excel (.xlsx) o un link de Google Sheets**: subir → elegir hoja → mapeo
+automático → preview con avisos → importar → deshacer.
+
+**El xlsx se traduce en el navegador y entra por el mismo camino que un CSV.**
+`src/lib/import/workbook.ts` convierte la hoja a texto delimitado y la manda al
+mismo motor ya probado, en vez de abrir un segundo camino en el servidor con su
+propia validación y sus propios bugs. De paso el binario nunca viaja. La
+librería es `read-excel-file` (solo lectura, MIT): se descartó el `xlsx` de npm
+porque sigue publicado en 0.18.5 de 2022 con CVEs conocidos, y `exceljs` porque
+pesa ocho veces más para además escribir, que no necesitamos.
+
+> Dos bugs que solo aparecieron al probar con un .xlsx real, ambos de la familia
+> del de `transactionDate`: la librería materializa los seriales de Excel a
+> medianoche **UTC**, así que leerlos con `getDate()` corría toda la planilla un
+> día para atrás en UTC-3 — y en un servidor en UTC no se habría notado nunca.
+> Y el serial es un float: las 14:30 llegan como 14:29:59.999, que truncado da
+> las 14:29. Se leen con getters UTC y se redondea al minuto.
+
+**Google Sheets entra por link público.** Lo descarga el servidor porque el
+navegador no puede por CORS, y eso lo haría un SSRF si aceptara cualquier URL:
+`googleSheetCsvUrl` valida host y ruta y **reconstruye** la URL desde el id de
+la planilla en vez de reenviar la que llegó. Las privadas necesitan OAuth de
+Google, que no está.
+
+**Se pueden crear los clientes que falten** al importar visitas o solicitudes,
+en vez de perder esas filas. Se cargan como un lote aparte, con su propia fila
+en el historial y su propio deshacer — cada executor abre su transacción, así
+que meterlos adentro sería reescribir los tres; como lote separado quedan
+visibles en vez de enterrados. La contrapartida, que la UI dice, es que si
+después falla la importación principal los clientes quedan creados. Se crea uno
+por nombre, no uno por fila.
 
 **Importar el equipo crea fichas, no accesos.** Cada persona entra desactivada y
 con el hash de una contraseña aleatoria que no se guarda ni se muestra: nadie
@@ -202,7 +232,7 @@ solo", y "cancelada salda / eliminada vuelve".
 | `server/services/pending.test.ts` | Los 42 tests. Agregar una variante = una rama + un test por lado. |
 | `server/trpc/routers/jobs.ts` | Trabajos multi-visita: abrir, cambiar la cantidad, cerrar, reabrir. |
 | `server/trpc/routers/history.ts` | Lee `audit_logs`. Append-only a propósito: sin create/update/delete. |
-| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 121 tests. |
+| `server/services/import.ts` | Motor del importador: parsear, mapear, validar, resolver clientes, agrupar trabajos. Puro, sin Prisma, 141 tests. |
 | `server/lib/import/signatures.ts` | Único archivo que conoce los campos importables y sus alias. Sumar un campo = una entrada más. |
 | `server/services/import.service.ts` | Escribe lo que el motor preparó. Una sola transacción, con `importId` para poder deshacer. |
 | `server/services/audit.service.ts` | `recordAudit` nunca rompe la operación que registra: loguea y traga el error. |
@@ -216,20 +246,9 @@ solo", y "cancelada salda / eliminada vuelve".
 
 ## Qué sigue, por prioridad
 
-1. **Lo que le falta al importador.** Las seis entidades del legacy ya entran
-   (`Clients`, `Visits`, `Transactions`, `Requests`, `Notes`, `Users`).
-   - Las visitas archivadas viven en hojas aparte (`Visits_2024`, etc.): se
-     pueden importar de a una, pero es manual.
-   - **Excel (.xlsx) y Google Sheets** no están. CSV cubre el caso porque
-     exportar es un clic en los dos, pero xlsx directo requiere elegir una
-     librería — `xlsx`/SheetJS tiene avisos de seguridad conocidos, así que la
-     decisión quedó pendiente en vez de tomarla de prepo.
-   - **Sin límites por plan.** El plan maestro pide Free = 50 filas y 1
-     importación. No está: la tabla `Plan` existe pero no hay nada que lea la
-     cuota. Va junto con la facturación.
-   - **No hay creación de clientes al vuelo** al importar visitas: si el cliente
-     no existe, la fila queda afuera. Es deliberado, pero un toggle "crear los
-     que falten" ahorraría un paso en una migración grande.
+1. **Sin límites por plan en el importador.** El plan maestro pide Free = 50
+   filas y 1 importación. No está: la tabla `Plan` existe pero no tiene columnas
+   de cuota y nada las lee. Va junto con la facturación, no antes.
 
 2. **Asesor IA.** Router `ai` stub, sin página. Es lo que hacía el prompt de la
    app vieja (`legacy/code.gs:1816`). `TenantSettings` ya guarda `aiProvider` y
@@ -245,7 +264,7 @@ solo", y "cancelada salda / eliminada vuelve".
    meses, así que la ventana no puede ser chica. Está bien a escala demo;
    revisar junto con el archivado.
 
-5. **Tests:** `pending.ts` (42) e `import.ts` (121) están cubiertos. Los routers
+5. **Tests:** `pending.ts` (42) e `import.ts` (141) están cubiertos. Los routers
    no tienen tests de integración — la transacción que abre trabajo + primera
    visita, el chequeo de que el trabajo sea del mismo cliente, y el deshacer de
    una importación están probados a mano contra la base pero no automatizados.

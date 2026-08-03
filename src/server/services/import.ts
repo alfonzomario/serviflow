@@ -23,6 +23,44 @@ import {
   type ImportEntity,
 } from '../lib/import/signatures';
 
+// ─── Google Sheets ─────────────────────────────────────────────────────────
+
+/**
+ * Traduce el link de una planilla de Google al de su export CSV.
+ *
+ * Devuelve null para cualquier cosa que no sea una URL de Google Sheets. Eso
+ * **no** es cosmético: la descarga la hace el servidor, así que aceptar una URL
+ * arbitraria sería dejar que cualquiera con permiso de importar le pida cosas a
+ * la red interna. Por eso se valida el host contra una lista fija y se reconstruye
+ * la URL desde el id en vez de reenviar la que vino.
+ *
+ * Solo funciona con planillas compartidas como "cualquiera con el enlace puede
+ * ver". Las privadas necesitan OAuth de Google, que es harina de otro costal.
+ */
+export const googleSheetCsvUrl = (raw: string): string | null => {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== 'https:') return null;
+  if (url.hostname !== 'docs.google.com') return null;
+
+  const id = url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1];
+  if (!id) return null;
+
+  // El gid identifica la hoja dentro del libro; puede venir en el hash o en la
+  // query según de dónde se copió el link.
+  const gid =
+    url.searchParams.get('gid') ??
+    url.hash.match(/gid=(\d+)/)?.[1] ??
+    '0';
+
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+};
+
 // ─── Parseo ────────────────────────────────────────────────────────────────
 
 /**
@@ -58,6 +96,29 @@ export const detectDelimiter = (firstLine: string): string => {
  * Parser de CSV/TSV. Soporta comillas, comas y saltos de línea dentro de un
  * campo, y `""` como comilla escapada — o sea, lo que produce Excel.
  */
+/**
+ * El camino inverso: filas → texto delimitado.
+ *
+ * Existe para el xlsx. Una planilla de Excel llega como celdas ya separadas, no
+ * como texto, y en vez de abrir un segundo camino en el servidor —con su propia
+ * validación, sus propios bugs— se la serializa acá y entra por el mismo lugar
+ * que un CSV. El motor que la procesa es el mismo que está probado.
+ *
+ * Usa `\t` como separador porque es lo que menos aparece dentro de una celda, y
+ * cita solo cuando hace falta. `parseDelimited(rowsToDelimited(x))` devuelve `x`.
+ */
+export const rowsToDelimited = (rows: string[][]): string =>
+  rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const value = cell ?? '';
+          return /["\t\n\r]/.test(value) ? `"${value.split('"').join('""')}"` : value;
+        })
+        .join('\t')
+    )
+    .join('\n');
+
 export const parseDelimited = (
   text: string
 ): { headers: string[]; rows: string[][] } => {
@@ -239,6 +300,22 @@ export const parseNumber = (raw: string): number | null => {
 };
 
 /**
+ * La hora pegada a una fecha, si la trae.
+ *
+ * Una celda de Excel guarda fecha y hora en el mismo valor, a diferencia de la
+ * app vieja que las tiene en columnas separadas. Sin esto un turno de las 14:30
+ * importado desde un .xlsx caería a medianoche.
+ */
+const trailingTime = (value: string): { hours: number; minutes: number } | null => {
+  const match = value.match(/[T\s](\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return { hours, minutes };
+};
+
+/**
  * Fechas en los formatos que aparecen en planillas reales. Prioriza dd/MM sobre
  * MM/dd: la planilla es argentina hasta que se demuestre lo contrario, y si el
  * primer número es mayor a 12 no hay ambigüedad posible.
@@ -247,9 +324,17 @@ export const parseImportDate = (raw: string): Date | null => {
   const value = raw.trim();
   if (!value) return null;
 
+  const time = trailingTime(value);
+
   const iso = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
-    const date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    const date = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3]),
+      time?.hours ?? 0,
+      time?.minutes ?? 0
+    );
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
@@ -269,7 +354,13 @@ export const parseImportDate = (raw: string): Date | null => {
     const fullYear = year.length === 2 ? 2000 + Number(year) : Number(year);
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
-    const date = new Date(fullYear, month - 1, day);
+    const date = new Date(
+      fullYear,
+      month - 1,
+      day,
+      time?.hours ?? 0,
+      time?.minutes ?? 0
+    );
     // Rechaza 31/02: el rollover de Date lo convertiría en marzo.
     if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
     return date;

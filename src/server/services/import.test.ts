@@ -7,7 +7,9 @@ import {
   parseImportDate,
   parseList,
   parseNumber,
+  rowsToDelimited,
   parseTimeOfDay,
+  googleSheetCsvUrl,
   groupIntoJobs,
   resolveClientRefs,
   parseEnum,
@@ -1036,5 +1038,142 @@ describe('equipo', () => {
     const result = build('Nombre,Email\nAna,ana@t.com\nAna R,ana@t.com')
 
     expect(result.issues.some((issue) => issue.message.includes('fila 1'))).toBe(true)
+  })
+})
+
+describe('rowsToDelimited', () => {
+  const roundTrip = (rows: string[][]) => {
+    const { headers, rows: parsed } = parseDelimited(rowsToDelimited(rows))
+    return [headers, ...parsed]
+  }
+
+  it('vuelve a salir igual que entró', () => {
+    const rows = [
+      ['Nombre', 'Dirección'],
+      ['Ana', 'Calle 1'],
+    ]
+
+    expect(roundTrip(rows)).toEqual(rows)
+  })
+
+  it('sobrevive comas, punto y coma y comillas dentro de una celda', () => {
+    // Son justo los caracteres que romperían un CSV ingenuo.
+    const rows = [
+      ['Nombre', 'Notas'],
+      ['Pérez, Juan', 'Dijo "mañana"; no vino'],
+    ]
+
+    expect(roundTrip(rows)).toEqual(rows)
+  })
+
+  it('sobrevive saltos de línea dentro de una celda', () => {
+    const rows = [
+      ['Nombre', 'Notas'],
+      ['Ana', 'Piso 3\nTimbre roto'],
+    ]
+
+    expect(roundTrip(rows)).toEqual(rows)
+  })
+
+  it('sobrevive tabulaciones dentro de una celda', () => {
+    // El separador que elegimos, metido adentro del dato.
+    const rows = [
+      ['Nombre', 'Notas'],
+      ['Ana', 'col1\tcol2'],
+    ]
+
+    expect(roundTrip(rows)).toEqual(rows)
+  })
+
+  it('no cita lo que no lo necesita', () => {
+    expect(rowsToDelimited([['Ana', 'Calle 1']])).toBe('Ana\tCalle 1')
+  })
+
+  it('conserva las celdas vacías, que corren las columnas', () => {
+    const rows = [
+      ['Nombre', 'Email', 'Teléfono'],
+      ['Ana', '', '1155550001'],
+    ]
+
+    expect(roundTrip(rows)).toEqual(rows)
+  })
+})
+
+describe('parseImportDate con hora', () => {
+  it('toma la hora cuando viene pegada a la fecha ISO', () => {
+    // Una celda de Excel trae fecha y hora en el mismo valor.
+    expect(parseImportDate('2026-03-20 14:30')).toEqual(new Date(2026, 2, 20, 14, 30))
+  })
+
+  it('acepta la T de ISO', () => {
+    expect(parseImportDate('2026-03-20T14:30')).toEqual(new Date(2026, 2, 20, 14, 30))
+  })
+
+  it('toma la hora en formato dd/MM', () => {
+    expect(parseImportDate('20/03/2026 14:30')).toEqual(new Date(2026, 2, 20, 14, 30))
+  })
+
+  it('sin hora sigue cayendo a medianoche', () => {
+    expect(parseImportDate('2026-03-20')).toEqual(new Date(2026, 2, 20))
+  })
+
+  it('ignora una hora imposible en vez de correr el día', () => {
+    // 25:00 haría rollover al día siguiente si lo pasáramos a Date.
+    expect(parseImportDate('2026-03-20 25:00')).toEqual(new Date(2026, 2, 20))
+  })
+
+  it('no confunde el año con una hora', () => {
+    expect(parseImportDate('2026-03-20')).toEqual(new Date(2026, 2, 20))
+    expect(parseImportDate('15/08/26')).toEqual(new Date(2026, 7, 15))
+  })
+})
+
+describe('googleSheetCsvUrl', () => {
+  const ID = '1lFpxmaCuF4ySL_PaUbV9yqo8s7k5CRS3-zCrgyVmBfk'
+
+  it('traduce el link de edición', () => {
+    expect(googleSheetCsvUrl(`https://docs.google.com/spreadsheets/d/${ID}/edit`)).toBe(
+      `https://docs.google.com/spreadsheets/d/${ID}/export?format=csv&gid=0`
+    )
+  })
+
+  it('toma el gid del hash', () => {
+    expect(
+      googleSheetCsvUrl(`https://docs.google.com/spreadsheets/d/${ID}/edit#gid=98765`)
+    ).toContain('gid=98765')
+  })
+
+  it('toma el gid de la query', () => {
+    expect(
+      googleSheetCsvUrl(`https://docs.google.com/spreadsheets/d/${ID}/edit?gid=1234`)
+    ).toContain('gid=1234')
+  })
+
+  it('rechaza cualquier host que no sea Google', () => {
+    // La descarga la hace el servidor: aceptar una URL cualquiera sería dejar
+    // que alguien le pida cosas a la red interna.
+    expect(googleSheetCsvUrl('https://evil.com/spreadsheets/d/abc/edit')).toBeNull()
+    expect(googleSheetCsvUrl('http://169.254.169.254/latest/meta-data/')).toBeNull()
+    expect(googleSheetCsvUrl('https://docs.google.com.evil.com/spreadsheets/d/x')).toBeNull()
+  })
+
+  it('rechaza http', () => {
+    expect(googleSheetCsvUrl(`http://docs.google.com/spreadsheets/d/${ID}/edit`)).toBeNull()
+  })
+
+  it('rechaza otras rutas de Google', () => {
+    expect(googleSheetCsvUrl('https://docs.google.com/document/d/abc/edit')).toBeNull()
+  })
+
+  it('rechaza lo que no es una URL', () => {
+    expect(googleSheetCsvUrl('mi planilla')).toBeNull()
+    expect(googleSheetCsvUrl('')).toBeNull()
+  })
+
+  it('ignora lo que venga colgado del link original', () => {
+    // Se reconstruye desde el id, no se reenvía la URL que llegó.
+    expect(
+      googleSheetCsvUrl(`https://docs.google.com/spreadsheets/d/${ID}/edit?usp=sharing&x=1`)
+    ).toBe(`https://docs.google.com/spreadsheets/d/${ID}/export?format=csv&gid=0`)
   })
 })
