@@ -60,6 +60,9 @@ export const visitsRouter = router({
           include: {
             client: { select: { id: true, name: true, address: true, phone: true } },
             assignedUser: { select: { id: true, name: true } },
+            // Para que la agenda pueda decir "2/5": sin esto, una aplicación
+            // suelta y una de un tratamiento se ven exactamente igual.
+            job: { select: { id: true, totalApplications: true } },
           },
           orderBy: { scheduledAt: 'asc' },
         }),

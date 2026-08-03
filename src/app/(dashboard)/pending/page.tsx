@@ -270,7 +270,7 @@ export default function PendingPage() {
 
             {applications.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No hay tratamientos con aplicaciones por agendar.
+                {`No hay ${labels.multiVisit.toLowerCase()}s con aplicaciones por agendar.`}
               </p>
             ) : (
               <div className="grid gap-3">
@@ -286,7 +286,7 @@ export default function PendingPage() {
                         <div className="min-w-0 space-y-1">
                           <h3 className="font-medium">{item.client.name}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {item.serviceType ?? "Tratamiento"} — falta agendar la aplicación{" "}
+                            {item.serviceType ?? labels.multiVisit} — falta agendar la aplicación{" "}
                             <strong>
                               {item.applicationNumber} de {item.totalApplications}
                             </strong>

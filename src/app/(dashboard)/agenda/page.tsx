@@ -61,9 +61,15 @@ export default function AgendaPage() {
         .filter((visit) => visit.scheduledAt !== null)
         .map((visit) => {
           const start = new Date(visit.scheduledAt as Date);
+          // "2/5" cuando la visita es parte de un trabajo de varias: en el
+          // calendario, si no, no hay forma de distinguirla de una suelta.
+          const application =
+            visit.job && visit.applicationNumber
+              ? ` (${visit.applicationNumber}/${visit.job.totalApplications})`
+              : '';
           return {
             id: visit.id,
-            title: `${visit.client.name}${visit.serviceType ? ` — ${visit.serviceType}` : ''}`,
+            title: `${visit.client.name}${visit.serviceType ? ` — ${visit.serviceType}` : ''}${application}`,
             start,
             end: new Date(start.getTime() + visit.durationMinutes * 60000),
             backgroundColor: STATUS_COLORS[visit.status] ?? STATUS_COLORS.SKIPPED,

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { trpc } from "@/lib/trpc"
+import { useTenantLabels } from "@/hooks/useTenantLabels"
 import { loadWorkbook, type LoadedWorkbook } from "@/lib/import/workbook"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -95,6 +96,7 @@ type Step = "upload" | "sheet" | "map" | "preview" | "done"
 
 export function ImportWizard({ onImported }: { onImported?: () => void }) {
   const utils = trpc.useUtils()
+  const labels = useTenantLabels()
 
   const [step, setStep] = React.useState<Step>("upload")
   const [entity, setEntity] = React.useState<Entity>("clients")
@@ -786,7 +788,10 @@ export function ImportWizard({ onImported }: { onImported?: () => void }) {
         {jobsCreated > 0 && (
           <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
             Se armaron <strong className="tabular-nums">{jobsCreated}</strong>{" "}
-            {jobsCreated === 1 ? "tratamiento" : "tratamientos"} con las filas que
+            {jobsCreated === 1
+              ? labels.multiVisit.toLowerCase()
+              : `${labels.multiVisit.toLowerCase()}s`}{" "}
+            con las filas que
             declaraban &ldquo;N de M&rdquo;. Los que quedaron a medias aparecen en
             Pendientes pidiendo la aplicación que falta.
           </p>
