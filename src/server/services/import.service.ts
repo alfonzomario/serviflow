@@ -796,69 +796,76 @@ export const executeUserImport = async ({
     select: { email: true },
   });
 
-  const outcome = await db.$transaction(async (tx) => {
-    const importId = crypto.randomUUID();
-    let imported = 0;
-    let skipped = 0;
-    const errors: { row: number; message: string }[] = [];
-    const seen = new Set(existing.map((user) => user.email.toLowerCase()));
+  // Generar el hash de contraseña inútil una sola vez fuera del bucle
+  // para evitar hacer 280+ operaciones de bcrypt dentro de la transacción de la base de datos.
+  const dummyPasswordHash = await bcrypt.hash(crypto.randomUUID() + crypto.randomUUID(), 10);
 
-    for (const row of rows) {
-      const email = (row.values.email as string | undefined)?.toLowerCase();
-      const name = row.values.name as string | undefined;
-      if (!email || !name) continue;
+  const outcome = await db.$transaction(
+    async (tx) => {
+      const importId = crypto.randomUUID();
+      let imported = 0;
+      let skipped = 0;
+      const errors: { row: number; message: string }[] = [];
+      const seen = new Set(existing.map((user) => user.email.toLowerCase()));
 
-      // Un email repetido nunca se pisa, sea cual sea la estrategia: el usuario
-      // que ya existe puede tener permisos ajustados a mano y una contraseña en
-      // uso. Sobrescribirlo dejaría a alguien afuera del sistema.
-      if (seen.has(email)) {
-        skipped++;
-        continue;
+      for (const row of rows) {
+        const email = (row.values.email as string | undefined)?.toLowerCase();
+        const name = row.values.name as string | undefined;
+        if (!email || !name) continue;
+
+        // Un email repetido nunca se pisa, sea cual sea la estrategia: el usuario
+        // que ya existe puede tener permisos ajustados a mano y una contraseña en
+        // uso. Sobrescribirlo dejaría a alguien afuera del sistema.
+        if (seen.has(email)) {
+          skipped++;
+          continue;
+        }
+
+        try {
+          await tx.user.create({
+            data: {
+              tenantId,
+              importId,
+              email,
+              name,
+              role: (row.values.role as 'OWNER' | 'ADMIN' | 'OPERATOR' | undefined) ?? 'OPERATOR',
+              // Contraseña aleatoria que no se guarda ni se muestra: la cuenta no
+              // es usable hasta que el dueño le ponga una desde Equipo.
+              passwordHash: dummyPasswordHash,
+              isActive: false,
+            },
+          });
+          seen.add(email);
+          imported++;
+        } catch (error) {
+          throw rowError(row.row, error);
+        }
       }
 
-      try {
-        await tx.user.create({
-          data: {
-            tenantId,
-            importId,
-            email,
-            name,
-            role: (row.values.role as 'OWNER' | 'ADMIN' | 'OPERATOR' | undefined) ?? 'OPERATOR',
-            // Contraseña aleatoria que no se guarda ni se muestra: la cuenta no
-            // es usable hasta que el dueño le ponga una desde Equipo.
-            passwordHash: await bcrypt.hash(crypto.randomUUID() + crypto.randomUUID(), 10),
-            isActive: false,
-          },
-        });
-        seen.add(email);
-        imported++;
-      } catch (error) {
-        throw rowError(row.row, error);
-      }
-    }
+      await tx.importHistory.create({
+        data: {
+          id: importId,
+          tenantId,
+          userId,
+          entityType: 'users',
+          fileName,
+          fileType: 'csv',
+          totalRows,
+          importedRows: imported,
+          skippedRows: skipped,
+          errorRows: errorRows + errors.length,
+          errors: errors as unknown as Prisma.InputJsonValue,
+          columnMapping,
+          duplicateStrategy: strategy,
+          status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
 
-    await tx.importHistory.create({
-      data: {
-        id: importId,
-        tenantId,
-        userId,
-        entityType: 'users',
-        fileName,
-        fileType: 'csv',
-        totalRows,
-        importedRows: imported,
-        skippedRows: skipped,
-        errorRows: errorRows + errors.length,
-        errors: errors as unknown as Prisma.InputJsonValue,
-        columnMapping,
-        duplicateStrategy: strategy,
-        status: errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
-        completedAt: new Date(),
-      },
-    });
-
-    return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
-  });
+      return { importId, imported, updated: 0, skipped, failed: errors.length, errors };
+    },
+    { timeout: 60000 }
+  );
 
   await recordAudit({
     tenantId,
