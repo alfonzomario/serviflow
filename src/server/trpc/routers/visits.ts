@@ -77,7 +77,7 @@ export const visitsRouter = router({
     .query(async ({ ctx, input }) => {
       const visit = await ctx.db.visit.findFirst({
         where: { id: input.id, ...tenantWhere(ctx.tenantId) },
-        include: { client: true, assignedUser: true, transactions: true },
+        include: { client: true, assignedUser: true, transactions: true, job: true },
       });
       if (!visit) throw new TRPCError({ code: 'NOT_FOUND' });
       return visit;
@@ -286,11 +286,47 @@ export const visitsRouter = router({
         priceWaived: z.boolean().optional(),
         paymentStatus: PaymentStatusEnum.optional(),
         applicationNumber: z.number().int().min(1).nullish(),
+        newJobApplications: z.number().int().min(2).max(60).nullish(),
         notes: z.string().nullish(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
+      const { id, newJobApplications, ...data } = input;
+
+      const visit = await ctx.db.visit.findFirst({
+        where: { id, ...tenantWhere(ctx.tenantId) },
+        select: { id: true, clientId: true, jobId: true, serviceType: true, visitType: true },
+      });
+      if (!visit) throw new TRPCError({ code: 'NOT_FOUND' });
+
+      if (newJobApplications) {
+        if (visit.jobId) {
+          await ctx.db.job.update({
+            where: { id: visit.jobId },
+            data: { totalApplications: newJobApplications },
+          });
+        } else {
+          const job = await ctx.db.job.create({
+            data: {
+              tenantId: ctx.tenantId,
+              clientId: visit.clientId,
+              serviceType: data.serviceType ?? visit.serviceType,
+              visitType: data.visitType ?? visit.visitType,
+              totalApplications: newJobApplications,
+            },
+          });
+          const updateData: Prisma.VisitUpdateInput = {
+            ...data,
+            job: { connect: { id: job.id } },
+            applicationNumber: 1,
+          };
+          return ctx.db.visit.update({
+            where: { id, tenantId: ctx.tenantId },
+            data: updateData,
+          });
+        }
+      }
+
       return ctx.db.visit.update({
         where: { id, tenantId: ctx.tenantId },
         data,
