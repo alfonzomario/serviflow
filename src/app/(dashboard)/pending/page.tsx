@@ -289,11 +289,6 @@ export default function PendingPage() {
               </div>
             )}
           </section>
-                  )
-                })}
-              </div>
-            )}
-          </section>
 
           <section className="space-y-3">
             <div className="flex items-center gap-2">
