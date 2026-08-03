@@ -5,9 +5,9 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import type { EventDropArg } from '@fullcalendar/core';
+import type { EventDropArg, EventContentArg } from '@fullcalendar/core';
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
-import { Plus } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/lib/trpc';
@@ -15,12 +15,62 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { VisitForm } from '@/components/agenda/VisitForm';
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING_CONFIRM: '#eab308', // yellow-500
-  CONFIRMED: '#4f46e5', // indigo-600
-  COMPLETED: '#16a34a', // green-600
-  CANCELLED: '#dc2626', // red-600
-  SKIPPED: '#64748b', // slate-500
+interface StatusStyle {
+  label: string;
+  bg: string;
+  border: string;
+  text: string;
+  dot: string;
+  badgeBg: string;
+  icon: typeof Clock;
+}
+
+const STATUS_CONFIG: Record<string, StatusStyle> = {
+  PENDING_CONFIRM: {
+    label: 'Por confirmar',
+    bg: '#fef3c7', // amber-100
+    border: '#f59e0b', // amber-500
+    text: '#78350f', // amber-900
+    dot: 'bg-amber-500',
+    badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
+    icon: Clock,
+  },
+  CONFIRMED: {
+    label: 'Confirmada',
+    bg: '#e0e7ff', // indigo-100
+    border: '#6366f1', // indigo-500
+    text: '#1e1b4b', // indigo-950
+    dot: 'bg-indigo-600',
+    badgeBg: 'bg-indigo-100 text-indigo-950 border-indigo-300',
+    icon: CalendarIcon,
+  },
+  COMPLETED: {
+    label: 'Realizada',
+    bg: '#dcfce7', // green-100
+    border: '#16a34a', // green-600
+    text: '#14532d', // green-950
+    dot: 'bg-green-600',
+    badgeBg: 'bg-green-100 text-green-950 border-green-300',
+    icon: CheckCircle2,
+  },
+  CANCELLED: {
+    label: 'Cancelada',
+    bg: '#fee2e2', // red-100
+    border: '#ef4444', // red-500
+    text: '#7f1d1d', // red-950
+    dot: 'bg-red-500',
+    badgeBg: 'bg-red-100 text-red-950 border-red-300',
+    icon: XCircle,
+  },
+  SKIPPED: {
+    label: 'Omitida',
+    bg: '#f1f5f9', // slate-100
+    border: '#64748b', // slate-500
+    text: '#0f172a', // slate-900
+    dot: 'bg-slate-500',
+    badgeBg: 'bg-slate-100 text-slate-900 border-slate-300',
+    icon: HelpCircle,
+  },
 };
 
 export default function AgendaPage() {
@@ -61,22 +111,31 @@ export default function AgendaPage() {
         .filter((visit) => visit.scheduledAt !== null)
         .map((visit) => {
           const start = new Date(visit.scheduledAt as Date);
-          // "2/5" cuando la visita es parte de un trabajo de varias: en el
-          // calendario, si no, no hay forma de distinguirla de una suelta.
           const application =
             visit.job && visit.applicationNumber
               ? ` (${visit.applicationNumber}/${visit.job.totalApplications})`
               : '';
+          
+          const statusConfig = STATUS_CONFIG[visit.status] ?? STATUS_CONFIG.SKIPPED;
+
           return {
             id: visit.id,
             title: `${visit.client.name}${visit.serviceType ? ` — ${visit.serviceType}` : ''}${application}`,
             start,
             end: new Date(start.getTime() + visit.durationMinutes * 60000),
-            backgroundColor: STATUS_COLORS[visit.status] ?? STATUS_COLORS.SKIPPED,
-            borderColor: STATUS_COLORS[visit.status] ?? STATUS_COLORS.SKIPPED,
+            backgroundColor: statusConfig.bg,
+            borderColor: statusConfig.border,
+            textColor: statusConfig.text,
             // Completed visits are historical records and must not be dragged.
             editable: visit.status !== 'COMPLETED',
-            extendedProps: { status: visit.status, clientId: visit.clientId },
+            extendedProps: {
+              status: visit.status,
+              clientId: visit.clientId,
+              clientName: visit.client.name,
+              serviceType: visit.serviceType,
+              application,
+              statusConfig,
+            },
           };
         }) ?? [],
     [visitsData]
@@ -119,9 +178,46 @@ export default function AgendaPage() {
     }
   }
 
+  function renderEventContent(eventInfo: EventContentArg) {
+    const props = eventInfo.event.extendedProps;
+    const config: StatusStyle = props.statusConfig || STATUS_CONFIG.SKIPPED;
+    const isCompleted = props.status === 'COMPLETED';
+
+    return (
+      <div
+        className="w-full h-full p-1.5 flex flex-col justify-between overflow-hidden text-xs rounded-md transition-all"
+        style={{
+          backgroundColor: config.bg,
+          borderLeft: `4px solid ${config.border}`,
+          color: config.text,
+        }}
+      >
+        <div className="flex items-start gap-1.5 min-w-0">
+          <span className={`h-2 w-2 rounded-full shrink-0 mt-1 ${config.dot}`} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className={`font-semibold truncate ${isCompleted ? 'line-through opacity-85' : ''}`}>
+              {props.clientName || eventInfo.event.title}
+            </div>
+            {props.serviceType && (
+              <div className="text-[11px] opacity-80 truncate">
+                {props.serviceType} {props.application}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {eventInfo.timeText && (
+          <div className="text-[10px] font-medium opacity-75 mt-0.5 self-end">
+            {eventInfo.timeText}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground">
@@ -134,20 +230,78 @@ export default function AgendaPage() {
         </Button>
       </div>
 
-      <Card className="overflow-hidden border-none bg-card p-4 shadow-md">
+      {/* Leyenda de Estados (inspirada en la app legacy) */}
+      <div className="flex flex-wrap items-center gap-3 bg-card p-3 rounded-lg border border-border shadow-sm text-xs font-medium">
+        <span className="text-muted-foreground font-semibold">Estados:</span>
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+          const Icon = cfg.icon;
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-2xs"
+              style={{
+                backgroundColor: cfg.bg,
+                borderColor: cfg.border,
+                color: cfg.text,
+              }}
+            >
+              <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
+              <Icon className="h-3 w-3 opacity-70" />
+              <span>{cfg.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <Card className="overflow-hidden border border-border bg-card p-4 shadow-md rounded-xl">
         <style
           dangerouslySetInnerHTML={{
             __html: `
+          .fc { font-family: inherit; }
           .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border); }
-          .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
-          .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; }
-          .fc-button-primary:not(:disabled):active, .fc-button-primary:not(:disabled).fc-button-active {
-            background-color: var(--primary) !important; border-color: var(--primary) !important; opacity: 0.8;
+          .fc-theme-standard .fc-scrollgrid { border-color: var(--border); border-radius: 0.5rem; }
+          .fc-header-toolbar { margin-bottom: 1rem !important; gap: 0.5rem; flex-wrap: wrap; }
+          .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 700 !important; color: var(--foreground); text-transform: capitalize; }
+          .fc-button-primary {
+            background-color: var(--background) !important;
+            border-color: var(--border) !important;
+            color: var(--foreground) !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+            padding: 0.4rem 0.8rem !important;
+            border-radius: 0.5rem !important;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+            transition: all 0.15s ease !important;
           }
-          .fc-event { cursor: pointer; transition: transform 0.1s ease; border-radius: 4px; padding: 2px 4px; border: none; }
-          .fc-event:hover { transform: scale(1.02); z-index: 5; }
-          .fc-timegrid-slot-label { font-size: 0.875rem; color: var(--muted-foreground); }
-          .fc-col-header-cell-cushion { color: var(--foreground); padding: 8px !important; }
+          .fc-button-primary:hover {
+            background-color: var(--accent) !important;
+            border-color: var(--border) !important;
+            color: var(--accent-foreground) !important;
+          }
+          .fc-button-primary:not(:disabled):active, .fc-button-primary:not(:disabled).fc-button-active {
+            background-color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: var(--primary-foreground) !important;
+          }
+          .fc-day-today { background-color: rgba(99, 102, 241, 0.04) !important; }
+          .fc-timegrid-slot { height: 2.5rem !important; }
+          .fc-timegrid-slot-label { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+          .fc-col-header-cell { padding: 8px 0 !important; }
+          .fc-col-header-cell-cushion { color: var(--foreground); font-weight: 600; font-size: 0.875rem; text-decoration: none !important; }
+          .fc-event {
+            cursor: pointer;
+            border-radius: 6px !important;
+            border: none !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08) !important;
+            transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+            overflow: hidden !important;
+          }
+          .fc-event:hover {
+            transform: translateY(-1px) scale(1.01);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12) !important;
+            z-index: 10 !important;
+          }
+          .fc-v-event, .fc-h-event { background-color: transparent !important; }
         `,
           }}
         />
@@ -177,6 +331,7 @@ export default function AgendaPage() {
           selectable
           selectMirror
           dayMaxEvents
+          eventContent={renderEventContent}
           datesSet={(arg) => setCurrentDate(arg.view.currentStart)}
           eventClick={(arg) => openExistingVisit(arg.event.id)}
           select={(arg) => {
@@ -203,3 +358,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+
