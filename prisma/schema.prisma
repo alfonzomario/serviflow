@@ -370,6 +370,7 @@ model Transaction {
   category        String?  @db.VarChar(100)
   transactionDate DateTime @map("transaction_date") @db.Date
   notes           String?
+  isPaid          Boolean  @default(true) @map("is_paid")
   /// De qué importación salió esta fila. Permite deshacer un lote entero sin
   /// tocar lo que se cargó a mano.
   importId        String?  @map("import_id") @db.Uuid

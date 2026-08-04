@@ -56,6 +56,7 @@ export const onVisitStatusChange = async (
           amount: visit.price,
           category: 'Visita',
           transactionDate,
+          isPaid: false, // Starts as "Por cobrar" until marked as paid
         },
       });
     }

@@ -71,6 +71,8 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
   const [notes, setNotes] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
 
+  const [isPaid, setIsPaid] = React.useState(true)
+
   React.useEffect(() => {
     if (!open) return
     setError(null)
@@ -81,6 +83,7 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
       setCategory(transaction.category ?? "")
       setDate(toDateOnlyInputValue(transaction.transactionDate))
       setNotes(transaction.notes ?? "")
+      setIsPaid((transaction as any).isPaid !== false)
       return
     }
 
@@ -90,6 +93,7 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
     setDate(todayInputValue())
     setClientId(NO_CLIENT)
     setNotes("")
+    setIsPaid(true)
   }, [open, transaction])
 
   const onSuccess = async (message: string) => {
@@ -130,6 +134,7 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
         category: category || null,
         transactionDate,
         notes: notes || null,
+        isPaid: type === "INCOME" ? isPaid : true,
       })
       return
     }
@@ -141,6 +146,7 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
       transactionDate,
       clientId: clientId === NO_CLIENT ? null : clientId,
       notes: notes || null,
+      isPaid: type === "INCOME" ? isPaid : true,
     })
   }
 
@@ -218,6 +224,18 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
               />
             </div>
           </div>
+
+          {type === "INCOME" && (
+            <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer text-foreground bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-emerald-500 rounded"
+                checked={isPaid}
+                onChange={(event) => setIsPaid(event.target.checked)}
+              />
+              <span>Dinero ya cobrado (sumar a caja real)</span>
+            </label>
+          )}
 
           {!isEditing && (
             <div className="grid gap-2">

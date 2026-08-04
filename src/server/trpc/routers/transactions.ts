@@ -14,6 +14,7 @@ export const transactionsRouter = router({
         startDate: z.date().optional(),
         endDate: z.date().optional(),
         type: TypeEnum.optional(),
+        isPaid: z.boolean().optional(),
         clientId: z.string().uuid().optional(),
         category: z.string().optional(),
         page: z.number().min(1).default(1),
@@ -21,14 +22,26 @@ export const transactionsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const { startDate, endDate, type, clientId, category, page, limit } = input;
+      const { startDate, endDate, type, isPaid, clientId, category, page, limit } = input;
       const skip = (page - 1) * limit;
 
       const whereClause: Prisma.TransactionWhereInput = {
         ...tenantWhere(ctx.tenantId),
         ...(type && { type }),
+        ...(typeof isPaid === 'boolean' && { isPaid }),
         ...(clientId && { clientId }),
         ...(category && { category }),
+        ...((startDate || endDate) && {
+          transactionDate: {
+            ...(startDate && { gte: startDate }),
+            ...(endDate && { lte: endDate }),
+          },
+        }),
+      };
+
+      // Summary query without type or isPaid filters so card metrics stay complete
+      const baseWhere: Prisma.TransactionWhereInput = {
+        ...tenantWhere(ctx.tenantId),
         ...((startDate || endDate) && {
           transactionDate: {
             ...(startDate && { gte: startDate }),
@@ -50,21 +63,41 @@ export const transactionsRouter = router({
         }),
         ctx.db.transaction.count({ where: whereClause }),
         ctx.db.transaction.groupBy({
-          by: ['type'],
-          where: whereClause,
+          by: ['type', 'isPaid'],
+          where: baseWhere,
           _sum: { amount: true },
         }),
       ]);
 
-      const income = Number(totals.find((t) => t.type === 'INCOME')?._sum.amount ?? 0);
-      const expense = Number(totals.find((t) => t.type === 'EXPENSE')?._sum.amount ?? 0);
+      let cobrado = 0;
+      let porCobrar = 0;
+      let expense = 0;
+
+      for (const t of totals) {
+        const amt = Number(t._sum.amount ?? 0);
+        if (t.type === 'EXPENSE') {
+          expense += amt;
+        } else if (t.type === 'INCOME') {
+          if (t.isPaid !== false) {
+            cobrado += amt;
+          } else {
+            porCobrar += amt;
+          }
+        }
+      }
 
       return {
         items,
         total,
         page,
         totalPages: Math.ceil(total / limit),
-        summary: { income, expense, balance: income - expense },
+        summary: {
+          cobrado,
+          porCobrar,
+          income: cobrado + porCobrar,
+          expense,
+          balance: cobrado - expense,
+        },
       };
     }),
 
@@ -90,8 +123,6 @@ export const transactionsRouter = router({
         ORDER BY 1 ASC
       `;
 
-      // Seed every month in the window so the chart keeps a fixed number of
-      // columns even when a month has no movements at all.
       const byMonth = new Map<string, { month: string; income: number; expense: number }>();
       for (let offset = 0; offset < input.months; offset++) {
         const cursor = new Date(since.getFullYear(), since.getMonth() + offset, 1);
@@ -121,6 +152,7 @@ export const transactionsRouter = router({
         clientId: z.string().uuid().nullish(),
         visitId: z.string().uuid().nullish(),
         notes: z.string().nullish(),
+        isPaid: z.boolean().default(true),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -143,6 +175,7 @@ export const transactionsRouter = router({
         category: z.string().nullish(),
         transactionDate: z.date().optional(),
         notes: z.string().nullish(),
+        isPaid: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -150,6 +183,20 @@ export const transactionsRouter = router({
       return ctx.db.transaction.update({
         where: { id, tenantId: ctx.tenantId },
         data,
+      });
+    }),
+
+  togglePaid: permissionProcedure('finance', 'write')
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        isPaid: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.transaction.update({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        data: { isPaid: input.isPaid },
       });
     }),
 

@@ -10,6 +10,10 @@ import {
   Plus,
   Trash2,
   Wallet,
+  Clock,
+  CheckCircle2,
+  DollarSign,
+  AlertCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -51,7 +55,7 @@ export default function FinancePage() {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
-  const [type, setType] = React.useState(ALL)
+  const [filterType, setFilterType] = React.useState(ALL)
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<EditableTransaction>(null)
   const [deletingId, setDeletingId] = React.useState<string | null>(null)
@@ -62,12 +66,26 @@ export default function FinancePage() {
   )
 
   const utils = trpc.useUtils()
+
+  const typeParam = React.useMemo(() => {
+    if (filterType === "INCOME" || filterType === "EXPENSE") return filterType
+    return undefined
+  }, [filterType])
+
+  const isPaidParam = React.useMemo(() => {
+    if (filterType === "COBRADO") return true
+    if (filterType === "POR_COBRAR") return false
+    return undefined
+  }, [filterType])
+
   const { data, isLoading } = trpc.transactions.list.useQuery({
     startDate: month,
     endDate: monthEnd,
-    type: type === ALL ? undefined : (type as "INCOME"),
+    type: typeParam,
+    isPaid: isPaidParam,
     limit: 200,
   })
+
   const monthly = trpc.transactions.monthlySummary.useQuery({ months: 6 })
 
   const deleteTransaction = trpc.transactions.delete.useMutation({
@@ -82,11 +100,10 @@ export default function FinancePage() {
     },
   })
 
-  const purgePreAugust = trpc.transactions.purgePreAugustTransactions.useMutation({
-    onSuccess: (res) => {
-      toast.success(`Se limpiaron ${res.count} movimientos anteriores a Agosto de 2026`)
-      utils.transactions.invalidate()
-      utils.dashboard.invalidate()
+  const togglePaid = trpc.transactions.togglePaid.useMutation({
+    onSuccess: async (_, variables) => {
+      toast.success(variables.isPaid ? "¡Cobro registrado correctamente!" : "Movimiento cambiado a Por cobrar")
+      await Promise.all([utils.transactions.invalidate(), utils.dashboard.invalidate()])
     },
     onError: (err) => toast.error(err.message),
   })
@@ -107,24 +124,28 @@ export default function FinancePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative pb-20">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Finanzas</h1>
-          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Ingresos y egresos del negocio.</p>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Administrá tu caja real, egresos y cuentas por cobrar.
+          </p>
         </div>
-        <Button onClick={openNew}>
+        <Button onClick={openNew} className="hidden sm:inline-flex shadow-md">
           <Plus className="mr-2 h-4 w-4" />
           Nuevo movimiento
         </Button>
       </div>
 
+      {/* Month Navigation & Type Filter */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-40 text-center text-sm font-medium capitalize">
+          <span className="min-w-40 text-center text-sm font-bold capitalize">
             {MONTHS[month.getMonth()]} {month.getFullYear()}
           </span>
           <Button variant="outline" size="icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente">
@@ -132,26 +153,30 @@ export default function FinancePage() {
           </Button>
         </div>
 
-        <Select value={type} onValueChange={setType}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-52 font-semibold">
+            <SelectValue placeholder="Filtrar movimientos" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Todos los tipos</SelectItem>
-            <SelectItem value="INCOME">Solo ingresos</SelectItem>
-            <SelectItem value="EXPENSE">Solo egresos</SelectItem>
+            <SelectItem value={ALL}>Todos los movimientos</SelectItem>
+            <SelectItem value="COBRADO">🟢 Solo cobrados</SelectItem>
+            <SelectItem value="POR_COBRAR">🟠 Por cobrar</SelectItem>
+            <SelectItem value="EXPENSE">🔴 Solo egresos</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Cobrado Card */}
         <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 shadow-xl shadow-emerald-500/10 hover:scale-[1.01] transition-transform">
-          <CardContent className="flex items-center justify-between p-6">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Ingresos</p>
-              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
-                {summary ? formatCurrency(summary.income) : "—"}
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Ingresos Cobrados</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
+                {summary ? formatCurrency(summary.cobrado) : "—"}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Dinero real en caja</p>
             </div>
             <div className="p-3 rounded-xl bg-emerald-500/15 shadow-lg shadow-emerald-500/20">
               <ArrowUpCircle className="h-6 w-6 text-emerald-400" />
@@ -159,13 +184,31 @@ export default function FinancePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-red-500/25 bg-gradient-to-br from-red-500/20 to-red-600/5 shadow-xl shadow-red-500/10 hover:scale-[1.01] transition-transform">
-          <CardContent className="flex items-center justify-between p-6">
+        {/* Por Cobrar Card */}
+        <Card className="border-amber-500/25 bg-gradient-to-br from-amber-500/20 to-amber-600/5 shadow-xl shadow-amber-500/10 hover:scale-[1.01] transition-transform">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Egresos</p>
-              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400">Por Cobrar</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
+                {summary ? formatCurrency(summary.porCobrar) : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Visitas realizadas pendientes</p>
+            </div>
+            <div className="p-3 rounded-xl bg-amber-500/15 shadow-lg shadow-amber-500/20">
+              <Clock className="h-6 w-6 text-amber-400" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Egresos Card */}
+        <Card className="border-red-500/25 bg-gradient-to-br from-red-500/20 to-red-600/5 shadow-xl shadow-red-500/10 hover:scale-[1.01] transition-transform">
+          <CardContent className="flex items-center justify-between p-5">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-red-400">Egresos / Gastos</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
                 {summary ? formatCurrency(summary.expense) : "—"}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Gastos operativos del mes</p>
             </div>
             <div className="p-3 rounded-xl bg-red-500/15 shadow-lg shadow-red-500/20">
               <ArrowDownCircle className="h-6 w-6 text-red-400" />
@@ -173,6 +216,7 @@ export default function FinancePage() {
           </CardContent>
         </Card>
 
+        {/* Balance Real Card */}
         <Card
           className={
             summary && summary.balance < 0
@@ -180,27 +224,28 @@ export default function FinancePage() {
               : "border-indigo-500/25 bg-gradient-to-br from-indigo-500/20 to-blue-600/5 shadow-xl shadow-indigo-500/10 hover:scale-[1.01] transition-transform"
           }
         >
-          <CardContent className="flex items-center justify-between p-6">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground)/0.8)]">Balance</p>
-              <p className="mt-1.5 text-2xl font-extrabold tracking-tight tabular-nums">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Balance Real</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
                 {summary ? formatCurrency(summary.balance) : "—"}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Cobrado − Egresos</p>
             </div>
-            <div className="p-3 rounded-xl bg-[hsl(var(--primary)/0.15)] shadow-lg shadow-indigo-500/20">
+            <div className="p-3 rounded-xl bg-indigo-500/15 shadow-lg shadow-indigo-500/20">
               <Wallet className="h-6 w-6 text-indigo-400" />
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Monthly Chart */}
       {monthly.data && monthly.data.length > 0 && (
-          <Card className="p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
-          <h2 className="mb-4 font-bold text-sm uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Últimos 6 meses</h2>
-          <div className="flex h-48 gap-4">
+        <Card className="p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
+          <h2 className="mb-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Evolución de los Últimos 6 meses</h2>
+          <div className="flex h-44 gap-4">
             {monthly.data.map((entry) => (
               <div key={entry.month} className="flex flex-1 flex-col gap-1">
-                {/* min-h-0 lets the bar track shrink so percentage heights resolve */}
                 <div className="flex min-h-0 flex-1 items-end justify-center gap-1">
                   <div
                     className="w-1/2 rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400"
@@ -213,73 +258,94 @@ export default function FinancePage() {
                     title={`Egresos: ${formatCurrency(entry.expense)}`}
                   />
                 </div>
-                <span className="text-center text-xs text-muted-foreground">
+                <span className="text-center text-xs font-semibold text-muted-foreground">
                   {entry.month.slice(5)}
                 </span>
               </div>
             ))}
           </div>
-          <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
+          <div className="mt-4 flex gap-4 text-xs font-medium text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500/60" /> Ingresos
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Ingresos Totales
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-red-500/60" /> Egresos
+              <span className="h-2 w-2 rounded-full bg-red-500" /> Egresos
             </span>
           </div>
         </Card>
       )}
 
-      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden shadow-lg">
+      {/* Table */}
+      <Card className="rounded-2xl border border-border bg-card overflow-hidden shadow-lg">
         {isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="h-12 animate-pulse rounded-xl bg-[hsl(var(--secondary))]" />
+              <div key={index} className="h-12 animate-pulse rounded-xl bg-muted" />
             ))}
           </div>
         ) : items.length === 0 ? (
           <EmptyState
             icon={Wallet}
-            title="Sin movimientos este mes"
-            description="Cargá un ingreso o egreso, o completá una visita con precio para que se registre solo."
+            title="Sin movimientos registrados"
+            description="Agendá ingresos o egresos, o marcá cobros de visitas completadas."
             actionLabel="Nuevo movimiento"
             onAction={openNew}
           />
         ) : (
           <Table>
-            <TableHeader className="bg-[hsl(var(--secondary)/0.5)]">
-              <TableRow className="border-b border-[hsl(var(--border))] hover:bg-transparent">
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Fecha</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Concepto</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Cliente</TableHead>
-                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] py-3">Monto</TableHead>
-                <TableHead className="w-24" />
+            <TableHeader className="bg-muted/50">
+              <TableRow className="border-b border-border hover:bg-transparent">
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-3">Fecha</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-3">Estado</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-3">Concepto</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-3">Cliente</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground py-3">Monto</TableHead>
+                <TableHead className="w-36 text-right py-3">Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((transaction) => {
                 const isIncome = transaction.type === "INCOME"
+                const isPaid = transaction.isPaid !== false
+
                 return (
                   <TableRow
                     key={transaction.id}
-                    className={`border-b border-[hsl(var(--border)/0.5)] last:border-0
-                      hover:bg-[hsl(var(--secondary)/0.4)] transition-colors
-                      ${isIncome ? "border-l-2 border-l-emerald-400/50" : "border-l-2 border-l-red-400/50"}`}
+                    className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors
+                      ${isIncome ? (isPaid ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-amber-500") : "border-l-4 border-l-red-500"}`}
                   >
-                    <TableCell className="whitespace-nowrap text-sm">
+                    <TableCell className="whitespace-nowrap text-sm font-semibold">
                       {formatDateOnly(transaction.transactionDate)}
                     </TableCell>
+
+                    {/* Estado Badge */}
+                    <TableCell className="whitespace-nowrap">
+                      {isIncome ? (
+                        isPaid ? (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-bold gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                            Cobrado
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-xs font-bold gap-1 animate-pulse">
+                            <Clock className="h-3 w-3 text-amber-500" />
+                            Por cobrar
+                          </Badge>
+                        )
+                      ) : (
+                        <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-xs font-bold">
+                          Egreso
+                        </Badge>
+                      )}
+                    </TableCell>
+
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge
-                          variant="outline"
-                          className={
-                            isIncome
-                              ? "border-none bg-emerald-500/10 text-emerald-600"
-                              : "border-none bg-red-500/10 text-red-600"
-                          }
+                          variant="secondary"
+                          className="font-medium text-xs"
                         >
-                          {transaction.category ?? (isIncome ? "Ingreso" : "Egreso")}
+                          {transaction.category ?? (isIncome ? "Visita" : "Gasto")}
                         </Badge>
                         {transaction.visit?.scheduledAt && (
                           <span className="text-xs text-muted-foreground">
@@ -291,20 +357,50 @@ export default function FinancePage() {
                         <p className="mt-1 text-xs text-muted-foreground">{transaction.notes}</p>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">{transaction.client?.name ?? "—"}</TableCell>
+
+                    <TableCell className="text-sm font-medium">{transaction.client?.name ?? "—"}</TableCell>
+
                     <TableCell
-                      className={`text-right font-bold tabular-nums ${
-                        isIncome ? "text-emerald-400" : "text-red-400"
+                      className={`text-right font-extrabold text-base tabular-nums ${
+                        isIncome ? (isPaid ? "text-emerald-400" : "text-amber-400") : "text-red-400"
                       }`}
                     >
                       {isIncome ? "+" : "−"}
                       {formatCurrency(transaction.amount)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
+
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Direct Action Button to Register Payment */}
+                        {isIncome && !isPaid && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm gap-1"
+                            disabled={togglePaid.isPending}
+                            onClick={() => togglePaid.mutate({ id: transaction.id, isPaid: true })}
+                          >
+                            <DollarSign className="h-3.5 w-3.5" />
+                            Cobrar
+                          </Button>
+                        )}
+
+                        {isIncome && isPaid && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[11px] text-muted-foreground hover:text-amber-400"
+                            disabled={togglePaid.isPending}
+                            title="Deshacer cobro (volver a Por cobrar)"
+                            onClick={() => togglePaid.mutate({ id: transaction.id, isPaid: false })}
+                          >
+                            Deshacer
+                          </Button>
+                        )}
+
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-7 w-7"
                           aria-label="Editar movimiento"
                           onClick={() => {
                             setEditing({
@@ -318,16 +414,17 @@ export default function FinancePage() {
                             setFormOpen(true)
                           }}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
+
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                           aria-label="Eliminar movimiento"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => setDeletingId(transaction.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -338,6 +435,18 @@ export default function FinancePage() {
           </Table>
         )}
       </Card>
+
+      {/* Floating Action Button (FAB) for "+ Nuevo movimiento" */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <Button
+          onClick={openNew}
+          size="lg"
+          className="h-12 px-5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold shadow-2xl shadow-indigo-500/40 border border-indigo-400/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+        >
+          <Plus className="h-5 w-5" />
+          <span className="font-bold">Nuevo movimiento</span>
+        </Button>
+      </div>
 
       <TransactionForm open={formOpen} onOpenChange={setFormOpen} transaction={editing} />
 
