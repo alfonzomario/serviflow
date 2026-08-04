@@ -253,6 +253,11 @@ export default function AgendaPage() {
             <Button
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md transition-all hover:scale-105"
               onClick={() => {
+                if (!googleStatus.data?.hasCredentials) {
+                  toast.error("Primero ingresá el Client ID y Client Secret en Ajustes -> Integraciones.");
+                  window.location.href = "/settings?tab=integraciones";
+                  return;
+                }
                 window.location.href = '/api/integrations/google/connect';
               }}
             >
