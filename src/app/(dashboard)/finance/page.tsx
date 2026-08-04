@@ -113,24 +113,10 @@ export default function FinancePage() {
           <h1 className="text-2xl font-extrabold tracking-tight">Finanzas</h1>
           <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Ingresos y egresos del negocio.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="text-xs text-muted-foreground hover:text-foreground"
-            disabled={purgePreAugust.isPending}
-            onClick={() => {
-              if (confirm("¿Querés limpiar todos los cobros automáticos generados antes de Agosto de 2026?")) {
-                purgePreAugust.mutate()
-              }
-            }}
-          >
-            Limpieza inicial (previo a Agosto 2026)
-          </Button>
-          <Button onClick={openNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo movimiento
-          </Button>
-        </div>
+        <Button onClick={openNew}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo movimiento
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

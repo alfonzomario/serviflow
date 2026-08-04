@@ -26,8 +26,10 @@ import {
 
 const INCOME_CATEGORIES = ["Visita", "Venta de producto", "Otro ingreso"]
 const EXPENSE_CATEGORIES = [
-  "Insumos",
+  "Comida / Viáticos",
+  "Auto / Taller",
   "Combustible",
+  "Insumos",
   "Sueldos",
   "Herramientas",
   "Impuestos",
