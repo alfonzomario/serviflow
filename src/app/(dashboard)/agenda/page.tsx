@@ -183,32 +183,22 @@ export default function AgendaPage() {
     const config: StatusStyle = props.statusConfig || STATUS_CONFIG.SKIPPED;
     const isCompleted = props.status === 'COMPLETED';
 
-    const start = eventInfo.event.start;
-    const startTimeStr = start
-      ? start.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
-      : '';
-
     return (
       <div
-        className="w-full h-full rounded-md transition-all overflow-hidden flex items-center justify-between px-2 py-0.5 text-xs shadow-2xs cursor-pointer"
+        className="w-full h-full rounded-md transition-all overflow-hidden flex items-center px-2 py-0.5 text-xs shadow-2xs cursor-pointer min-w-0"
         style={{
           backgroundColor: config.bg,
           borderLeft: `4px solid ${config.border}`,
           color: config.text,
         }}
+        title={`${props.clientName || eventInfo.event.title} (${eventInfo.timeText || ''})`}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot}`} />
-          <div className={`font-bold truncate min-w-0 flex-1 leading-tight text-xs ${isCompleted ? 'line-through opacity-85' : ''}`}>
+          <div className={`font-extrabold truncate min-w-0 flex-1 leading-tight text-xs tracking-tight ${isCompleted ? 'line-through opacity-85' : ''}`}>
             {props.clientName || eventInfo.event.title}
           </div>
         </div>
-
-        {startTimeStr && (
-          <div className="text-[11px] font-extrabold opacity-90 shrink-0 ml-1 bg-black/10 px-1.5 py-0.5 rounded">
-            {startTimeStr} hs
-          </div>
-        )}
       </div>
     );
   }
