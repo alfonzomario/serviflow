@@ -422,15 +422,60 @@ function IntegracionesTab() {
     } catch (e) { toast.error("Error al guardar") }
   }
 
+  const disconnectGcal = trpc.integrations.disconnectGoogleCalendar.useMutation({
+    onSuccess: () => {
+      toast.success("Google Calendar desconectado")
+      utils.integrations.getGoogleCalendarStatus.invalidate()
+    },
+    onError: (e) => toast.error(e.message),
+  })
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Google Calendar</CardTitle>
+          <CardDescription>Sincronización automática bidireccional en segundo plano.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="mb-4 text-sm text-muted-foreground">Estado: {gcal.data?.connected ? "Conectado" : "Desconectado"}</p>
-          <Button disabled>Conectar con Google</Button>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold">
+                Estado:{" "}
+                {gcal.data?.connected ? (
+                  <span className="text-emerald-400 font-bold">🟢 Conectado y Sincronizando</span>
+                ) : (
+                  <span className="text-muted-foreground">⚪ Desconectado</span>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {gcal.data?.connected
+                  ? "Las visitas agendadas o modificadas en ServiFlow se crearán automáticamente en tu Google Calendar."
+                  : "Vinculá tu cuenta de Google en 1 clic para que las visitas se agenden solas en tu celular."}
+              </p>
+            </div>
+
+            {gcal.data?.connected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs text-destructive hover:bg-destructive/10 border-destructive/30 font-bold"
+                disabled={disconnectGcal.isPending}
+                onClick={() => disconnectGcal.mutate()}
+              >
+                Desconectar Google Calendar
+              </Button>
+            ) : (
+              <Button
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md"
+                onClick={() => {
+                  window.location.href = "/api/integrations/google/connect"
+                }}
+              >
+                Conectar con Google (Automático)
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

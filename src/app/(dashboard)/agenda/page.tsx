@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -214,6 +214,24 @@ export default function AgendaPage() {
     );
   }
 
+  const googleStatus = trpc.integrations.getGoogleCalendarStatus.useQuery();
+
+  // Check URL query parameters for OAuth redirect status
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('google_connected') === 'true') {
+      toast.success('¡Google Calendar conectado de forma 100% automática!');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (urlParams.get('error') === 'google_credentials_missing') {
+      toast.error('Para conectar Google Calendar, ingresá tus credenciales OAuth en Ajustes -> Integraciones.');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (urlParams.get('error')) {
+      toast.error('No se pudo completar la conexión con Google Calendar.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -224,18 +242,24 @@ export default function AgendaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="text-xs gap-1.5 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
-            onClick={() => {
-              const url = `${window.location.origin}/api/calendar/ical?token=lozanor-demo`
-              navigator.clipboard.writeText(url)
-              toast.success("Enlace de Google Calendar copiado al portapapeles. Agregalo en Google Calendar -> Añadir por URL.")
-            }}
-          >
-            <CalendarIcon className="h-4 w-4 text-indigo-400" />
-            Sincronizar Google Calendar
-          </Button>
+          {googleStatus.data?.connected ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-xs">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                Google Calendar Sincronizado
+              </span>
+            </div>
+          ) : (
+            <Button
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md transition-all hover:scale-105"
+              onClick={() => {
+                window.location.href = '/api/integrations/google/connect';
+              }}
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Conectar Google Calendar (Automático)
+            </Button>
+          )}
           <Button onClick={() => openNewVisit()}>
             <Plus className="mr-2 h-4 w-4" />
             Nueva visita
