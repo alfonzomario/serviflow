@@ -518,9 +518,40 @@ function IntegracionesTab() {
 
           {/* Form to configure Google Client ID & Secret */}
           <div className="pt-4 border-t border-border grid gap-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Credenciales de la Aplicación Google (OAuth)
-            </h4>
+            <div className="flex flex-col gap-1">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Credenciales de la Aplicación Google (OAuth)
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Configurá tu Client ID y Secret generados en Google Cloud Console.
+              </p>
+            </div>
+
+            <div className="bg-muted/40 p-3.5 rounded-xl border border-border space-y-1.5">
+              <span className="text-xs font-bold text-foreground">URI de redireccionamiento que debés pegar en Google Cloud:</span>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-mono bg-background px-3 py-1.5 rounded-lg border border-border select-all break-all flex-1 text-emerald-400 font-bold">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/integrations/google/callback` : '/api/integrations/google/callback'}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-semibold h-8"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      navigator.clipboard.writeText(`${window.location.origin}/api/integrations/google/callback`);
+                      toast.success("URI copiada al portapapeles");
+                    }
+                  }}
+                >
+                  Copiar URI
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Esta dirección exacta debe estar en tu proyecto de Google Cloud ➔ APIs y Servicios ➔ Credenciales ➔ <strong>URIs de redireccionamiento autorizados</strong>.
+              </p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label className="text-xs">Google Client ID</Label>
