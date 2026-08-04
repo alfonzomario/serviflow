@@ -124,7 +124,7 @@ export default function FinancePage() {
               }
             }}
           >
-            Limpiar movimientos previas a Agosto 2026
+            Limpieza inicial (previo a Agosto 2026)
           </Button>
           <Button onClick={openNew}>
             <Plus className="mr-2 h-4 w-4" />
