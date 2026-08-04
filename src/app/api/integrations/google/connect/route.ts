@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     where: { tenantId: session.user.tenantId },
   });
 
-  const clientId = tenantSettings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '';
+  const clientId = (tenantSettings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '').trim();
 
   if (!clientId) {
     return NextResponse.redirect(
@@ -21,8 +21,9 @@ export async function GET(req: Request) {
     );
   }
 
-  const origin = new URL(req.url).origin;
-  const redirectUri = `${origin}/api/integrations/google/callback`;
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+  const protocol = req.headers.get('x-forwarded-proto') || (req.url.startsWith('https') ? 'https' : 'http');
+  const redirectUri = `${protocol}://${host}/api/integrations/google/callback`;
 
   const scope = [
     'https://www.googleapis.com/auth/calendar',

@@ -35,17 +35,19 @@ export const integrationsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const encryptedSecret = input.clientSecret ? encryptIfPresent(input.clientSecret) : undefined;
+      const trimmedClientId = input.clientId ? input.clientId.trim() : null;
+      const trimmedSecret = input.clientSecret ? input.clientSecret.trim() : undefined;
+      const encryptedSecret = trimmedSecret ? encryptIfPresent(trimmedSecret) : undefined;
 
       await ctx.db.tenantSettings.upsert({
         where: { tenantId: ctx.tenantId },
         create: {
           tenantId: ctx.tenantId,
-          googleClientId: input.clientId || null,
+          googleClientId: trimmedClientId,
           ...(encryptedSecret && { googleClientSecretEncrypted: encryptedSecret }),
         },
         update: {
-          googleClientId: input.clientId || null,
+          googleClientId: trimmedClientId,
           ...(encryptedSecret && { googleClientSecretEncrypted: encryptedSecret }),
         },
       });

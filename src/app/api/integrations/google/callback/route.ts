@@ -8,7 +8,9 @@ export async function GET(req: Request) {
   const tenantId = searchParams.get('state');
   const error = searchParams.get('error');
 
-  const origin = new URL(req.url).origin;
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+  const protocol = req.headers.get('x-forwarded-proto') || (req.url.startsWith('https') ? 'https' : 'http');
+  const origin = `${protocol}://${host}`;
 
   if (error || !code || !tenantId) {
     console.error('Google OAuth callback error or missing parameters:', error);
@@ -19,11 +21,11 @@ export async function GET(req: Request) {
     where: { tenantId },
   });
 
-  const clientId = settings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '';
-  let clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+  const clientId = (settings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '').trim();
+  let clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 
   if (!clientSecret && settings?.googleClientSecretEncrypted) {
-    clientSecret = decryptIfPresent(settings.googleClientSecretEncrypted) || '';
+    clientSecret = (decryptIfPresent(settings.googleClientSecretEncrypted) || '').trim();
   }
 
   const redirectUri = `${origin}/api/integrations/google/callback`;
