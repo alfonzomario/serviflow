@@ -527,30 +527,49 @@ function IntegracionesTab() {
               </p>
             </div>
 
-            <div className="bg-muted/40 p-3.5 rounded-xl border border-border space-y-1.5">
-              <span className="text-xs font-bold text-foreground">URI de redireccionamiento que debés pegar en Google Cloud:</span>
-              <div className="flex items-center gap-2">
-                <code className="text-xs font-mono bg-background px-3 py-1.5 rounded-lg border border-border select-all break-all flex-1 text-emerald-400 font-bold">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/api/integrations/google/callback` : '/api/integrations/google/callback'}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs font-semibold h-8"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      navigator.clipboard.writeText(`${window.location.origin}/api/integrations/google/callback`);
-                      toast.success("URI copiada al portapapeles");
-                    }
-                  }}
-                >
-                  Copiar URI
-                </Button>
-              </div>
+            <div className="bg-muted/40 p-3.5 rounded-xl border border-border space-y-2">
+              <span className="text-xs font-bold text-foreground">URIs de redireccionamiento para Google Cloud Console:</span>
               <p className="text-[11px] text-muted-foreground">
-                Esta dirección exacta debe estar en tu proyecto de Google Cloud ➔ APIs y Servicios ➔ Credenciales ➔ <strong>URIs de redireccionamiento autorizados</strong>.
+                Agregá estas 2 direcciones exactas en tu proyecto de Google Cloud (en <strong>URIs de redireccionamiento autorizados</strong>):
               </p>
+              <div className="space-y-1.5 font-mono text-xs">
+                <div className="flex items-center justify-between gap-2 bg-background px-3 py-2 rounded-lg border border-border">
+                  <span className="text-emerald-400 font-bold break-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/integrations/google/callback` : 'http://localhost:3000/api/integrations/google/callback'}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 px-2 font-semibold"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        navigator.clipboard.writeText(`${window.location.origin}/api/integrations/google/callback`);
+                        toast.success("URI copiada al portapapeles");
+                      }
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-2 bg-background px-3 py-2 rounded-lg border border-border">
+                  <span className="text-emerald-400 font-bold break-all">
+                    http://127.0.0.1:3000/api/integrations/google/callback
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 px-2 font-semibold"
+                    onClick={() => {
+                      navigator.clipboard.writeText('http://127.0.0.1:3000/api/integrations/google/callback');
+                      toast.success("URI copiada al portapapeles");
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
