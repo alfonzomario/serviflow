@@ -422,6 +422,15 @@ function IntegracionesTab() {
     } catch (e) { toast.error("Error al guardar") }
   }
 
+  const [gcalForm, setGcalForm] = React.useState({ clientId: "", clientSecret: "" })
+  const updateGcalCreds = trpc.integrations.updateGoogleCredentials.useMutation()
+
+  React.useEffect(() => {
+    if (gcal.data && !gcalForm.clientId) {
+      setGcalForm({ clientId: gcal.data.googleClientId || "", clientSecret: "" })
+    }
+  }, [gcal.data])
+
   const disconnectGcal = trpc.integrations.disconnectGoogleCalendar.useMutation({
     onSuccess: () => {
       toast.success("Google Calendar desconectado")
@@ -430,6 +439,19 @@ function IntegracionesTab() {
     onError: (e) => toast.error(e.message),
   })
 
+  async function onSaveGcalCreds() {
+    try {
+      await updateGcalCreds.mutateAsync({
+        clientId: gcalForm.clientId || null,
+        clientSecret: gcalForm.clientSecret || undefined,
+      })
+      toast.success("Credenciales de Google guardadas")
+      utils.integrations.getGoogleCalendarStatus.invalidate()
+    } catch (e) {
+      toast.error("Error al guardar credenciales")
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -437,7 +459,7 @@ function IntegracionesTab() {
           <CardTitle>Google Calendar</CardTitle>
           <CardDescription>Sincronización automática bidireccional en segundo plano.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold">
@@ -469,12 +491,55 @@ function IntegracionesTab() {
               <Button
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md"
                 onClick={() => {
+                  if (!gcal.data?.hasCredentials && !gcalForm.clientId) {
+                    toast.error("Ingresá tu Google Client ID y Client Secret abajo antes de conectar.")
+                    return
+                  }
                   window.location.href = "/api/integrations/google/connect"
                 }}
               >
                 Conectar con Google
               </Button>
             )}
+          </div>
+
+          {/* Form to configure Google Client ID & Secret */}
+          <div className="pt-4 border-t border-border grid gap-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Credenciales de la Aplicación Google (OAuth)
+            </h4>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label className="text-xs">Google Client ID</Label>
+                <Input
+                  value={gcalForm.clientId}
+                  onChange={(e) => setGcalForm((c) => ({ ...c, clientId: e.target.value }))}
+                  placeholder="ej: 123456789-abc.apps.googleusercontent.com"
+                  className="text-xs"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-xs">
+                  Google Client Secret {gcal.data?.hasClientSecret ? "(Configurado)" : ""}
+                </Label>
+                <Input
+                  type="password"
+                  value={gcalForm.clientSecret}
+                  onChange={(e) => setGcalForm((c) => ({ ...c, clientSecret: e.target.value }))}
+                  placeholder={gcal.data?.hasClientSecret ? "Dejar en blanco para mantener" : "ej: GOCSPX-..."}
+                  className="text-xs"
+                />
+              </div>
+            </div>
+            <Button
+              onClick={onSaveGcalCreds}
+              disabled={updateGcalCreds.isPending}
+              variant="outline"
+              size="sm"
+              className="w-fit text-xs font-semibold"
+            >
+              Guardar Credenciales de Google
+            </Button>
           </div>
         </CardContent>
       </Card>

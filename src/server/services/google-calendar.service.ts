@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { decryptIfPresent } from "../lib/encryption";
 
 /** Helper to get a valid Google Access Token, refreshing it if expired using the refresh token */
 async function getValidAccessToken(tenantId: string): Promise<string | null> {
@@ -19,8 +20,11 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
   }
 
   // Refresh token call
-  const clientId = process.env.GOOGLE_CLIENT_ID || "";
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+  const clientId = settings.googleClientId || process.env.GOOGLE_CLIENT_ID || "";
+  let clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+  if (!clientSecret && settings.googleClientSecretEncrypted) {
+    clientSecret = decryptIfPresent(settings.googleClientSecretEncrypted) || "";
+  }
 
   if (!clientId || !clientSecret) {
     // If no client credentials configured yet, fallback to saved access token

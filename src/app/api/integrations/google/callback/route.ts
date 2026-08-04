@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/db';
+import { decryptIfPresent } from '@/server/lib/encryption';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -14,8 +15,17 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL('/agenda?error=google_auth_failed', origin));
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID || '';
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+  const settings = await db.tenantSettings.findUnique({
+    where: { tenantId },
+  });
+
+  const clientId = settings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '';
+  let clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
+  if (!clientSecret && settings?.googleClientSecretEncrypted) {
+    clientSecret = decryptIfPresent(settings.googleClientSecretEncrypted) || '';
+  }
+
   const redirectUri = `${origin}/api/integrations/google/callback`;
 
   try {

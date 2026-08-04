@@ -8,14 +8,48 @@ export const integrationsRouter = router({
     const settings = await ctx.db.tenantSettings.findUnique({
       where: { tenantId: ctx.tenantId },
     });
+
+    const envClientId = process.env.GOOGLE_CLIENT_ID || null;
+    const envClientSecret = process.env.GOOGLE_CLIENT_SECRET || null;
+
+    const clientId = settings?.googleClientId || envClientId;
+    const hasSecret = Boolean(settings?.googleClientSecretEncrypted || envClientSecret);
+
     return {
       connected: !!settings?.googleRefreshToken,
       calendarId: settings?.googleCalendarId || null,
       enabled: settings?.googleCalendarEnabled || false,
+      hasCredentials: Boolean(clientId && hasSecret),
+      googleClientId: clientId || null,
+      hasClientSecret: hasSecret,
       icalFeedToken: settings?.icalFeedToken || null,
       icalFeedUrl: settings?.icalFeedToken ? `/api/ical/${settings.icalFeedToken}` : null,
     };
   }),
+
+  updateGoogleCredentials: ownerProcedure
+    .input(
+      z.object({
+        clientId: z.string().nullish(),
+        clientSecret: z.string().nullish(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const encryptedSecret = input.clientSecret ? encryptIfPresent(input.clientSecret) : undefined;
+
+      await ctx.db.tenantSettings.upsert({
+        where: { tenantId: ctx.tenantId },
+        create: {
+          tenantId: ctx.tenantId,
+          googleClientId: input.clientId || null,
+          ...(encryptedSecret && { googleClientSecretEncrypted: encryptedSecret }),
+        },
+        update: {
+          googleClientId: input.clientId || null,
+          ...(encryptedSecret && { googleClientSecretEncrypted: encryptedSecret }),
+        },
+      });
+    }),
 
   disconnectGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
     await ctx.db.tenantSettings.upsert({
@@ -58,7 +92,8 @@ export const integrationsRouter = router({
     }
 
     return {
-      url: `/api/ical/${settings.icalFeedToken}`,
+      token: settings.icalFeedToken,
+      url: `/api/calendar/ical?token=${settings.icalFeedToken}`,
     };
   }),
 
@@ -74,9 +109,8 @@ export const integrationsRouter = router({
         icalFeedToken: newToken,
       },
     });
-    return {
-      url: `/api/ical/${newToken}`,
-    };
+
+    return { token: newToken, url: `/api/calendar/ical?token=${newToken}` };
   }),
 
   getWhatsAppConfig: ownerProcedure.query(async ({ ctx }) => {
@@ -84,7 +118,7 @@ export const integrationsRouter = router({
       where: { tenantId: ctx.tenantId },
     });
     return {
-      configured: !!settings?.waOwnApiUrl && !!settings?.waOwnApiKeyEncrypted,
+      configured: !!settings?.waOwnApiUrl,
       apiUrl: settings?.waOwnApiUrl || null,
       hasApiKey: !!settings?.waOwnApiKeyEncrypted,
     };
@@ -93,26 +127,23 @@ export const integrationsRouter = router({
   updateWhatsAppConfig: ownerProcedure
     .input(
       z.object({
-        apiUrl: z.string().url().nullable().or(z.literal('')),
-        apiKey: z.string().optional(),
+        apiUrl: z.string().nullish(),
+        apiKey: z.string().nullish(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: any = {
-        waOwnApiUrl: input.apiUrl || null,
-      };
-      
-      if (input.apiKey !== undefined) {
-        updateData.waOwnApiKeyEncrypted = encryptIfPresent(input.apiKey) || null;
-      }
-
+      const encryptedKey = input.apiKey ? encryptIfPresent(input.apiKey) : undefined;
       await ctx.db.tenantSettings.upsert({
         where: { tenantId: ctx.tenantId },
         create: {
           tenantId: ctx.tenantId,
-          ...updateData,
+          waOwnApiUrl: input.apiUrl || null,
+          ...(encryptedKey && { waOwnApiKeyEncrypted: encryptedKey }),
         },
-        update: updateData,
+        update: {
+          waOwnApiUrl: input.apiUrl || null,
+          ...(encryptedKey && { waOwnApiKeyEncrypted: encryptedKey }),
+        },
       });
     }),
 
@@ -121,7 +152,7 @@ export const integrationsRouter = router({
       where: { tenantId: ctx.tenantId },
     });
     return {
-      configured: !!settings?.smtpOwnHost && !!settings?.smtpOwnUser && !!settings?.smtpOwnPassEncrypted,
+      configured: !!settings?.smtpOwnHost,
       host: settings?.smtpOwnHost || null,
       port: settings?.smtpOwnPort || null,
       user: settings?.smtpOwnUser || null,
@@ -133,32 +164,32 @@ export const integrationsRouter = router({
   updateSmtpConfig: ownerProcedure
     .input(
       z.object({
-        host: z.string().nullable().or(z.literal('')),
-        port: z.number().nullable().or(z.string().transform(v => parseInt(v, 10)).pipe(z.number())),
-        user: z.string().nullable().or(z.literal('')),
-        password: z.string().optional(),
-        fromEmail: z.string().nullable().or(z.literal('')),
+        host: z.string().nullish(),
+        port: z.number().nullish(),
+        user: z.string().nullish(),
+        password: z.string().nullish(),
+        fromEmail: z.string().nullish(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: any = {
-        smtpOwnHost: input.host || null,
-        smtpOwnPort: input.port || null,
-        smtpOwnUser: input.user || null,
-        smtpOwnFromEmail: input.fromEmail || null,
-      };
-
-      if (input.password !== undefined) {
-        updateData.smtpOwnPassEncrypted = encryptIfPresent(input.password) || null;
-      }
-
+      const encryptedPass = input.password ? encryptIfPresent(input.password) : undefined;
       await ctx.db.tenantSettings.upsert({
         where: { tenantId: ctx.tenantId },
         create: {
           tenantId: ctx.tenantId,
-          ...updateData,
+          smtpOwnHost: input.host || null,
+          smtpOwnPort: input.port || null,
+          smtpOwnUser: input.user || null,
+          smtpOwnFromEmail: input.fromEmail || null,
+          ...(encryptedPass && { smtpOwnPassEncrypted: encryptedPass }),
         },
-        update: updateData,
+        update: {
+          smtpOwnHost: input.host || null,
+          smtpOwnPort: input.port || null,
+          smtpOwnUser: input.user || null,
+          smtpOwnFromEmail: input.fromEmail || null,
+          ...(encryptedPass && { smtpOwnPassEncrypted: encryptedPass }),
+        },
       });
     }),
 
@@ -176,29 +207,30 @@ export const integrationsRouter = router({
   updateWebhookConfig: ownerProcedure
     .input(
       z.object({
-        url: z.string().url().nullable().or(z.literal('')),
-        events: z.array(z.string()),
+        url: z.string().nullish(),
+        events: z.array(z.string()).default([]),
         regenerateSecret: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: any = {
-        webhookUrl: input.url || null,
-        webhookEvents: input.events,
-      };
-
+      let secret: string | undefined = undefined;
       if (input.regenerateSecret) {
-        updateData.webhookSecret = crypto.randomBytes(32).toString('hex');
+        secret = crypto.randomBytes(32).toString('hex');
       }
 
       await ctx.db.tenantSettings.upsert({
         where: { tenantId: ctx.tenantId },
         create: {
           tenantId: ctx.tenantId,
-          ...updateData,
-          ...(input.regenerateSecret ? {} : { webhookSecret: crypto.randomBytes(32).toString('hex') }),
+          webhookUrl: input.url || null,
+          webhookEvents: input.events,
+          ...(secret && { webhookSecret: secret }),
         },
-        update: updateData,
+        update: {
+          webhookUrl: input.url || null,
+          webhookEvents: input.events,
+          ...(secret && { webhookSecret: secret }),
+        },
       });
     }),
 
@@ -206,40 +238,33 @@ export const integrationsRouter = router({
     const settings = await ctx.db.tenantSettings.findUnique({
       where: { tenantId: ctx.tenantId },
     });
-    
-    // Check global platform AI key vs own key
-    const hasOwnKey = !!settings?.aiOwnKeyEncrypted;
-    
     return {
       provider: settings?.aiOwnProvider || 'openai',
-      hasApiKey: hasOwnKey,
-      usingPlatformKey: !hasOwnKey,
+      hasApiKey: !!settings?.aiOwnKeyEncrypted,
+      usingPlatformKey: !settings?.aiOwnKeyEncrypted,
     };
   }),
 
   updateAiConfig: ownerProcedure
     .input(
       z.object({
-        provider: z.enum(['openai', 'anthropic', 'gemini', 'deepseek']),
-        apiKey: z.string().optional(),
+        provider: z.string(),
+        apiKey: z.string().nullish(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: any = {
-        aiOwnProvider: input.provider,
-      };
-
-      if (input.apiKey !== undefined) {
-        updateData.aiOwnKeyEncrypted = encryptIfPresent(input.apiKey) || null;
-      }
-
+      const encryptedKey = input.apiKey ? encryptIfPresent(input.apiKey) : undefined;
       await ctx.db.tenantSettings.upsert({
         where: { tenantId: ctx.tenantId },
         create: {
           tenantId: ctx.tenantId,
-          ...updateData,
+          aiOwnProvider: input.provider,
+          ...(encryptedKey && { aiOwnKeyEncrypted: encryptedKey }),
         },
-        update: updateData,
+        update: {
+          aiOwnProvider: input.provider,
+          ...(encryptedKey && { aiOwnKeyEncrypted: encryptedKey }),
+        },
       });
     }),
 });

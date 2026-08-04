@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/server/auth';
+import { db } from '@/server/db';
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -8,12 +9,15 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID || '';
+  const tenantSettings = await db.tenantSettings.findUnique({
+    where: { tenantId: session.user.tenantId },
+  });
+
+  const clientId = tenantSettings?.googleClientId || process.env.GOOGLE_CLIENT_ID || '';
 
   if (!clientId) {
-    // If no client ID configured yet, redirect back to agenda with instructions
     return NextResponse.redirect(
-      new URL('/agenda?error=google_credentials_missing', req.url)
+      new URL('/settings?tab=integraciones&error=google_credentials_missing', req.url)
     );
   }
 
@@ -33,8 +37,8 @@ export async function GET(req: Request) {
   googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
   googleAuthUrl.searchParams.set('response_type', 'code');
   googleAuthUrl.searchParams.set('scope', scope);
-  googleAuthUrl.searchParams.set('access_type', 'offline'); // To get refresh_token
-  googleAuthUrl.searchParams.set('prompt', 'consent'); // Force refresh_token on reconnect
+  googleAuthUrl.searchParams.set('access_type', 'offline');
+  googleAuthUrl.searchParams.set('prompt', 'consent');
   googleAuthUrl.searchParams.set('state', session.user.tenantId);
 
   return NextResponse.redirect(googleAuthUrl.toString());
