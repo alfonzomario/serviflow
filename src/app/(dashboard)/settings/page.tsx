@@ -490,10 +490,23 @@ function IntegracionesTab() {
             ) : (
               <Button
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md"
-                onClick={() => {
+                disabled={updateGcalCreds.isPending}
+                onClick={async () => {
                   if (!gcal.data?.hasCredentials && !gcalForm.clientId) {
                     toast.error("Ingresá tu Google Client ID y Client Secret abajo antes de conectar.")
                     return
+                  }
+                  // Auto-save credentials if the user typed them in the input fields
+                  if (gcalForm.clientId || gcalForm.clientSecret) {
+                    try {
+                      await updateGcalCreds.mutateAsync({
+                        clientId: gcalForm.clientId || null,
+                        clientSecret: gcalForm.clientSecret || undefined,
+                      })
+                    } catch (e) {
+                      toast.error("Error al guardar credenciales")
+                      return
+                    }
                   }
                   window.location.href = "/api/integrations/google/connect"
                 }}
