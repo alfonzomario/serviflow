@@ -9,22 +9,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
 
-    const isUuid = Boolean(token && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token));
-
-    let tenant = null;
+    let tenantRow: { id: string; name: string; slug: string } | null = null;
     if (token) {
-      tenant = await db.tenant.findFirst({
-        where: isUuid ? { id: token } : { slug: token },
-      });
+      const rows = await db.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
+        SELECT id::text, name, slug FROM tenants WHERE slug = ${token} OR id::text = ${token} LIMIT 1
+      `;
+      tenantRow = rows[0] || null;
     }
 
-    if (!tenant) {
-      tenant = await db.tenant.findFirst({
-        where: { status: 'ACTIVE' },
-      });
+    if (!tenantRow) {
+      const rows = await db.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
+        SELECT id::text, name, slug FROM tenants WHERE status = 'ACTIVE' LIMIT 1
+      `;
+      tenantRow = rows[0] || null;
     }
 
-    if (!tenant) {
+    if (!tenantRow) {
       return new NextResponse('Tenant no encontrado', { status: 404 });
     }
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const visits = await db.visit.findMany({
       where: {
-        tenantId: tenant.id,
+        tenantId: tenantRow.id,
         status: { not: 'CANCELLED' },
         scheduledAt: { gte: threeMonthsAgo },
       },
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       'PRODID:-//ServiFlow//Agenda Sync//ES',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
-      `X-WR-CALNAME:ServiFlow - ${tenant.name}`,
+      `X-WR-CALNAME:ServiFlow - ${tenantRow.name}`,
       'X-WR-TIMEZONE:America/Argentina/Buenos_Aires',
     ];
 
