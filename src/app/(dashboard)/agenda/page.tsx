@@ -184,17 +184,13 @@ export default function AgendaPage() {
     const isCompleted = props.status === 'COMPLETED';
 
     const start = eventInfo.event.start;
-    const end = eventInfo.event.end;
-    const durationMinutes = start && end ? Math.round((end.getTime() - start.getTime()) / 60000) : 45;
-    const isShort = durationMinutes <= 30;
+    const startTimeStr = start
+      ? start.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : '';
 
     return (
       <div
-        className={`w-full h-full rounded-md transition-all overflow-hidden ${
-          isShort
-            ? 'flex items-center justify-between px-2 py-0.5 text-xs'
-            : 'p-1.5 flex flex-col justify-between text-xs'
-        }`}
+        className="w-full h-full rounded-md transition-all overflow-hidden flex items-center justify-between px-2 py-0.5 text-xs shadow-2xs cursor-pointer"
         style={{
           backgroundColor: config.bg,
           borderLeft: `4px solid ${config.border}`,
@@ -203,14 +199,14 @@ export default function AgendaPage() {
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot}`} />
-          <div className={`font-semibold truncate min-w-0 flex-1 leading-tight ${isCompleted ? 'line-through opacity-85' : ''}`}>
+          <div className={`font-bold truncate min-w-0 flex-1 leading-tight text-xs ${isCompleted ? 'line-through opacity-85' : ''}`}>
             {props.clientName || eventInfo.event.title}
           </div>
         </div>
 
-        {eventInfo.timeText && (
-          <div className="text-[10px] font-medium opacity-80 shrink-0 ml-1">
-            {eventInfo.timeText}
+        {startTimeStr && (
+          <div className="text-[11px] font-extrabold opacity-90 shrink-0 ml-1 bg-black/10 px-1.5 py-0.5 rounded">
+            {startTimeStr} hs
           </div>
         )}
       </div>
@@ -223,13 +219,27 @@ export default function AgendaPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground">
-            Gestioná los turnos y visitas programadas. Arrastrá un turno para reprogramarlo.
+            Gestioná los turnos y visitas programadas. De 07:00 a 21:00 hs.
           </p>
         </div>
-        <Button onClick={() => openNewVisit()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva visita
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="text-xs gap-1.5 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
+            onClick={() => {
+              const url = `${window.location.origin}/api/calendar/ical?token=lozanor-demo`
+              navigator.clipboard.writeText(url)
+              toast.success("Enlace de Google Calendar copiado al portapapeles. Agregalo en Google Calendar -> Añadir por URL.")
+            }}
+          >
+            <CalendarIcon className="h-4 w-4 text-indigo-400" />
+            Sincronizar Google Calendar
+          </Button>
+          <Button onClick={() => openNewVisit()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva visita
+          </Button>
+        </div>
       </div>
 
       {/* Leyenda de Estados (inspirada en la app legacy) */}
@@ -287,7 +297,7 @@ export default function AgendaPage() {
           }
           .fc-day-today { background-color: rgba(99, 102, 241, 0.04) !important; }
           .fc-timegrid-slot { height: 2.5rem !important; }
-          .fc-timegrid-slot-label { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+          .fc-timegrid-slot-label { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); }
           .fc-col-header-cell { padding: 8px 0 !important; }
           .fc-col-header-cell-cushion { color: var(--foreground); font-weight: 600; font-size: 0.875rem; text-decoration: none !important; }
           .fc-timegrid-event { min-height: 24px !important; border-radius: 0.375rem !important; }
@@ -334,7 +344,10 @@ export default function AgendaPage() {
           events={events}
           height="75vh"
           slotMinTime="07:00:00"
-          slotMaxTime="20:00:00"
+          slotMaxTime="21:00:00"
+          slotDuration="01:00:00"
+          slotLabelInterval="01:00:00"
+          expandRows={true}
           allDaySlot={false}
           nowIndicator
           editable

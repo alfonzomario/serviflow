@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react"
+import { Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, MapPin, ExternalLink } from "lucide-react"
 import { trpc } from "@/lib/trpc"
 import { formatDate, toDateTimeLocalValue } from "@/lib/format"
 import { useTenantLabels } from "@/hooks/useTenantLabels"
@@ -171,7 +171,7 @@ function CalendarPickerPopover({
               value={isNaN(dateVal.getTime()) ? 9 : dateVal.getHours()}
               onChange={(e) => handleTimeChange(Number(e.target.value), isNaN(dateVal.getTime()) ? 0 : dateVal.getMinutes())}
             >
-              {Array.from({ length: 24 }).map((_, h) => (
+              {[7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map((h) => (
                 <option key={h} value={h}>
                   {String(h).padStart(2, '0')}:00 hs
                 </option>
@@ -488,6 +488,28 @@ export function VisitForm({
                 ))}
               </SelectContent>
             </Select>
+
+            {(() => {
+              const selectedClient = clients.data?.find((c) => c.id === values.clientId);
+              if (!selectedClient?.address) return null;
+              return (
+                <div className="flex items-center justify-between text-xs text-muted-foreground bg-sky-500/10 p-2.5 rounded-xl border border-sky-500/20 mt-1">
+                  <span className="truncate flex items-center gap-1.5 font-medium text-foreground">
+                    <MapPin className="h-4 w-4 text-sky-500 shrink-0" />
+                    {selectedClient.address}
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedClient.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-sky-300 bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 transition-all hover:scale-105"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir en Maps
+                  </a>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -703,6 +725,28 @@ export function VisitForm({
                     Marcar realizada
                   </Button>
                 )}
+
+                {(() => {
+                  const selectedClient = clients.data?.find((c) => c.id === values.clientId);
+                  if (!selectedClient || !values.scheduledAt) return null;
+                  const start = new Date(values.scheduledAt);
+                  if (isNaN(start.getTime())) return null;
+                  const end = new Date(start.getTime() + (values.durationMinutes || 45) * 60000);
+                  const formatGCal = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+                  const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedClient.name + " - " + (values.serviceType || "Servicio"))}&dates=${formatGCal(start)}/${formatGCal(end)}&details=${encodeURIComponent("Servicio en " + (selectedClient.address || "") + (values.notes ? " - " + values.notes : ""))}&location=${encodeURIComponent(selectedClient.address || "")}`;
+
+                  return (
+                    <a
+                      href={gcalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all"
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      Añadir a Google Calendar
+                    </a>
+                  );
+                })()}
               </div>
             ) : (
               <span />

@@ -233,10 +233,15 @@ export default function PendingPage() {
                             </span>
                           )}
                           {item.client.address && (
-                            <span className="flex items-center gap-1 truncate">
-                              <MapPin className="h-3 w-3 shrink-0" />
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.client.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-sky-400 hover:underline truncate font-medium"
+                            >
+                              <MapPin className="h-3 w-3 shrink-0 text-sky-500" />
                               {item.client.address}
-                            </span>
+                            </a>
                           )}
                           <span className="truncate">
                             {item.lastVisitAt
