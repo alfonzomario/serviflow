@@ -3,6 +3,7 @@ import { db } from '@/server/db';
 import { formatInTimeZone } from 'date-fns-tz';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const TZ = 'America/Argentina/Buenos_Aires';
 
@@ -10,7 +11,7 @@ function formatLocalICalDate(date: Date): string {
   return formatInTimeZone(date, TZ, "yyyyMMdd'T'HHmmss");
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 
@@ -33,7 +34,6 @@ export async function GET(request: Request) {
     return new NextResponse('Tenant no encontrado', { status: 404 });
   }
 
-  // Fetch visits from 3 months ago to 1 year in advance
   const now = new Date();
   const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
 
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
   return new NextResponse(icsLines.join('\r\n'), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `inline; filename="serviflow-calendar.ics"`,
+      'Content-Disposition': 'inline; filename="serviflow-calendar.ics"',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
     },
   });
