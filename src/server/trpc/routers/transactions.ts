@@ -172,4 +172,18 @@ export const transactionsRouter = router({
 
       return deleted;
     }),
+
+  purgePreAugustTransactions: permissionProcedure('finance', 'write')
+    .mutation(async ({ ctx }) => {
+      const cutoffDate = new Date('2026-08-01T00:00:00.000Z');
+      const updated = await ctx.db.transaction.updateMany({
+        where: {
+          tenantId: ctx.tenantId,
+          transactionDate: { lt: cutoffDate },
+          deletedAt: null,
+        },
+        data: { deletedAt: new Date() },
+      });
+      return { count: updated.count };
+    }),
 });
