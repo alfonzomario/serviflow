@@ -9,12 +9,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
 
+    const isUuid = Boolean(token && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token));
+
     let tenant = null;
     if (token) {
       tenant = await db.tenant.findFirst({
-        where: {
-          OR: [{ id: token }, { slug: token }],
-        },
+        where: isUuid ? { id: token } : { slug: token },
       });
     }
 
