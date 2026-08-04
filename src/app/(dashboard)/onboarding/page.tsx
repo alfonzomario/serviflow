@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Sparkles } from "lucide-react"
+import { ArrowLeft, Check, Sparkles, LogOut } from "lucide-react"
+import { signOut } from "next-auth/react"
 import { toast } from "sonner"
 
 import { trpc } from "@/lib/trpc"
@@ -90,6 +91,23 @@ export default function OnboardingPage() {
   if (step === 1) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
+        {/* Top Header with Logout Option */}
+        <div className="flex items-center justify-between pb-2 border-b border-border/40">
+          <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+            <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            ServiFlow Setup
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/10 gap-1.5"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Cerrar sesión
+          </Button>
+        </div>
+
         <div className="space-y-3 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 border border-indigo-500/25 shadow-lg shadow-indigo-500/10">
             <Sparkles className="h-7 w-7 text-indigo-400 animate-pulse" />
@@ -132,14 +150,26 @@ export default function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <button
-        type="button"
-        onClick={() => setStep(1)}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Cambiar de rubro
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setStep(1)}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Cambiar de rubro
+        </button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/10 gap-1.5"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Cerrar sesión
+        </Button>
+      </div>
 
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Ajustá lo que haga falta</h1>

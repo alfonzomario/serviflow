@@ -16,8 +16,10 @@ export const subscriptionRouter = router({
           maxUsers: 2,
           maxClients: 50,
           maxVisitsMonth: 100,
-          aiEnabled: false,
-          monthlyPriceArs: 0,
+          monthlyPriceUsd: 0,
+          annualPriceUsd: 0,
+          isActive: true,
+          sortOrder: 1,
         },
         {
           id: 'pro',
@@ -26,8 +28,10 @@ export const subscriptionRouter = router({
           maxUsers: 10,
           maxClients: 500,
           maxVisitsMonth: 1000,
-          aiEnabled: true,
-          monthlyPriceArs: 25000,
+          monthlyPriceUsd: 25,
+          annualPriceUsd: 250,
+          isActive: true,
+          sortOrder: 2,
         },
         {
           id: 'business',
@@ -36,8 +40,10 @@ export const subscriptionRouter = router({
           maxUsers: 50,
           maxClients: 5000,
           maxVisitsMonth: 10000,
-          aiEnabled: true,
-          monthlyPriceArs: 60000,
+          monthlyPriceUsd: 60,
+          annualPriceUsd: 600,
+          isActive: true,
+          sortOrder: 3,
         },
       ];
     }

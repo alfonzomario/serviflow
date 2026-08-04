@@ -10,43 +10,78 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-
-type SettingsForm = {
-  businessName: string
-  baseAddress: string
-  workingHoursStart: string
-  workingHoursEnd: string
-  recurrenceUnit: string
-  recurrenceInterval: number
-  recurrenceAnchor: string
-  oneOffSettlesPeriod: boolean
-  minDaysBetweenApplications: number
-  defaultDurationMinutes: number
-  labelRecurringAgreement: string
-  labelOneOffVisit: string
-  labelMultiVisitJob: string
-  serviceTypes: string[]
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
 
 export default function SettingsPage() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Ajustes</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Configura el comportamiento, la marca, las integraciones y más.
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="negocio" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="negocio">Negocio</TabsTrigger>
+          <TabsTrigger value="marca">Marca</TabsTrigger>
+          <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
+          <TabsTrigger value="ia">IA</TabsTrigger>
+          <TabsTrigger value="suscripcion">Suscripción</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="negocio">
+          <NegocioTab />
+        </TabsContent>
+        <TabsContent value="marca">
+          <MarcaTab />
+        </TabsContent>
+        <TabsContent value="integraciones">
+          <IntegracionesTab />
+        </TabsContent>
+        <TabsContent value="ia">
+          <IaTab />
+        </TabsContent>
+        <TabsContent value="suscripcion">
+          <SuscripcionTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+function NegocioTab() {
   const utils = trpc.useUtils()
   const tenant = trpc.tenant.current.useQuery()
 
-  const [form, setForm] = React.useState<SettingsForm | null>(null)
+  type FormType = {
+    businessName: string
+    baseAddress: string
+    workingHoursStart: string
+    workingHoursEnd: string
+    recurrenceUnit: string
+    recurrenceInterval: number
+    recurrenceAnchor: string
+    oneOffSettlesPeriod: boolean
+    minDaysBetweenApplications: number
+    defaultDurationMinutes: number
+    labelRecurringAgreement: string
+    labelOneOffVisit: string
+    labelMultiVisitJob: string
+    serviceTypes: string[]
+  }
+
+  const [form, setForm] = React.useState<FormType | null>(null)
   const [newService, setNewService] = React.useState("")
 
-  // Load once the tenant arrives; afterwards the form owns the state.
   React.useEffect(() => {
     if (!tenant.data || form) return
     const settings = tenant.data.settings
-
     setForm({
       businessName: tenant.data.name,
       baseAddress: settings?.baseAddress ?? "",
@@ -69,7 +104,7 @@ export default function SettingsPage() {
     })
   }, [tenant.data, form])
 
-  const set = <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) =>
+  const set = <K extends keyof FormType>(key: K, value: FormType[K]) =>
     setForm((current) => (current ? { ...current, [key]: value } : current))
 
   const updateProfile = trpc.tenant.updateProfile.useMutation()
@@ -79,7 +114,6 @@ export default function SettingsPage() {
 
   async function onSave() {
     if (!form) return
-
     try {
       await updateProfile.mutateAsync({ name: form.businessName })
       await updateSettings.mutateAsync({
@@ -97,10 +131,8 @@ export default function SettingsPage() {
         labelMultiVisitJob: form.labelMultiVisitJob,
         customServiceTypes: form.serviceTypes,
       })
-
-      toast.success("Ajustes guardados")
+      toast.success("Ajustes del negocio guardados")
       await utils.tenant.invalidate()
-      // Pendientes depends on the cadence, so its results are now stale.
       await utils.visits.invalidate()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar")
@@ -114,300 +146,461 @@ export default function SettingsPage() {
     setNewService("")
   }
 
-  if (!form) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
-        <div className="h-48 animate-pulse rounded-xl bg-muted" />
-        <div className="h-64 animate-pulse rounded-xl bg-muted" />
-      </div>
-    )
-  }
+  if (!form) return <div className="animate-pulse h-48 bg-muted rounded-xl" />
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Ajustes</h1>
-          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-            Configuraciones operativas, servicios y reglas de frecuencia de tu negocio.
-          </p>
-        </div>
-        <Button
-          onClick={onSave}
-          disabled={isSaving}
-          className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/25 border-none"
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {isSaving ? "Guardando…" : "Guardar cambios"}
-        </Button>
-      </div>
-
-      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-bold">El negocio</CardTitle>
-          <CardDescription className="text-xs text-[hsl(var(--muted-foreground))]">Datos generales y desde dónde salís a trabajar.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="businessName">Nombre</Label>
-            <Input
-              id="businessName"
-              value={form.businessName}
-              onChange={(event) => set("businessName", event.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="baseAddress">Dirección base</Label>
-            <Input
-              id="baseAddress"
-              value={form.baseAddress}
-              onChange={(event) => set("baseAddress", event.target.value)}
-              placeholder="Magallanes 1090, San Isidro"
-            />
-            <p className="text-xs text-muted-foreground">
-              Se usa para calcular distancias al armar el recorrido.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="hoursStart">Empezás a las</Label>
-              <Input
-                id="hoursStart"
-                type="time"
-                value={form.workingHoursStart}
-                onChange={(event) => set("workingHoursStart", event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="hoursEnd">Terminás a las</Label>
-              <Input
-                id="hoursEnd"
-                type="time"
-                value={form.workingHoursEnd}
-                onChange={(event) => set("workingHoursEnd", event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="duration">Duración típica (min)</Label>
-              <Input
-                id="duration"
-                type="number"
-                min={5}
-                max={600}
-                step={5}
-                value={form.defaultDurationMinutes}
-                onChange={(event) =>
-                  set("defaultDurationMinutes", Number(event.target.value))
-                }
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-bold">Cómo se repiten los servicios</CardTitle>
-          <CardDescription className="text-xs text-[hsl(var(--muted-foreground))]">
-            Define cuándo algo aparece en Pendientes. Nada de esto agenda por vos.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label>¿Cada cuánto volvés a un cliente con servicio fijo?</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">cada</span>
-              <Input
-                type="number"
-                min={1}
-                max={60}
-                value={form.recurrenceInterval}
-                onChange={(event) => set("recurrenceInterval", Number(event.target.value))}
-                className="w-20"
-              />
-              <Select
-                value={form.recurrenceUnit}
-                onValueChange={(value) => set("recurrenceUnit", value)}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DAY">
-                    {form.recurrenceInterval === 1 ? "día" : "días"}
-                  </SelectItem>
-                  <SelectItem value="WEEK">
-                    {form.recurrenceInterval === 1 ? "semana" : "semanas"}
-                  </SelectItem>
-                  <SelectItem value="MONTH">
-                    {form.recurrenceInterval === 1 ? "mes" : "meses"}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Valor por defecto: cada cliente puede tener el suyo.
-            </p>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="anchor">¿Cómo contás el próximo vencimiento?</Label>
-            <Select
-              value={form.recurrenceAnchor}
-              onValueChange={(value) => set("recurrenceAnchor", value)}
-            >
-              <SelectTrigger id="anchor">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CALENDAR">Por período: el servicio del mes</SelectItem>
-                <SelectItem value="LAST_VISIT">Desde la última visita</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {form.recurrenceAnchor === "CALENDAR"
-                ? "Cualquier visita dentro del período lo salda, y el siguiente se debe desde el día 1."
-                : "Si fuiste el 20, el próximo vence el 20 del período siguiente."}
-            </p>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="oneOff">
-              Una {form.labelOneOffVisit.toLowerCase()}, ¿salda el{" "}
-              {form.labelRecurringAgreement.toLowerCase()} del período?
-            </Label>
-            <Select
-              value={form.oneOffSettlesPeriod ? "yes" : "no"}
-              onValueChange={(value) => set("oneOffSettlesPeriod", value === "yes")}
-            >
-              <SelectTrigger id="oneOff">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="no">No, el período sigue debiéndose</SelectItem>
-                <SelectItem value="yes">Sí, cualquier visita cuenta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="minDays">
-              Días mínimos entre dos visitas de un mismo {form.labelMultiVisitJob.toLowerCase()}
-            </Label>
-            <Input
-              id="minDays"
-              type="number"
-              min={0}
-              max={365}
-              value={form.minDaysBetweenApplications}
-              onChange={(event) =>
-                set("minDaysBetweenApplications", Number(event.target.value))
-              }
-              className="w-28"
-            />
-            <p className="text-xs text-muted-foreground">
-              {form.minDaysBetweenApplications > 0
-                ? `Pendientes va a decir "hacerla a partir del…" y avisar si agendás antes. Podés guardar igual.`
-                : "En 0 no hago ninguna advertencia."}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Cómo le decís a cada cosa</CardTitle>
-          <CardDescription>Estas palabras aparecen en toda la app.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="grid gap-2">
-            <Label htmlFor="labelRecurring">Al servicio que se repite</Label>
-            <Input
-              id="labelRecurring"
-              value={form.labelRecurringAgreement}
-              onChange={(event) => set("labelRecurringAgreement", event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="labelOneOff">A la visita de única vez</Label>
-            <Input
-              id="labelOneOff"
-              value={form.labelOneOffVisit}
-              onChange={(event) => set("labelOneOffVisit", event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="labelMulti">Al trabajo de varias visitas</Label>
-            <Input
-              id="labelMulti"
-              value={form.labelMultiVisitJob}
-              onChange={(event) => set("labelMultiVisitJob", event.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Servicios que ofrecés</CardTitle>
-          <CardDescription>
-            Aparecen como sugerencia al cargar una visita o una solicitud.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="flex gap-2">
-            <Input
-              value={newService}
-              onChange={(event) => setNewService(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault()
-                  addService()
-                }
-              }}
-              placeholder="Agregá uno y presioná Enter"
-            />
-            <Button type="button" variant="outline" onClick={addService}>
-              Agregar
-            </Button>
-          </div>
-
-          {form.serviceTypes.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {form.serviceTypes.map((service) => (
-                <Badge
-                  key={service}
-                  variant="secondary"
-                  className="cursor-pointer font-normal hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() =>
-                    set(
-                      "serviceTypes",
-                      form.serviceTypes.filter((item) => item !== service)
-                    )
-                  }
-                  title="Quitar"
-                >
-                  {service} ×
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Todavía no cargaste ninguno.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
       <div className="flex justify-end">
         <Button onClick={onSave} disabled={isSaving}>
           <Save className="mr-2 h-4 w-4" />
           {isSaving ? "Guardando…" : "Guardar cambios"}
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>El negocio</CardTitle>
+          <CardDescription>Datos generales y operacionales.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Nombre</Label>
+            <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Dirección base</Label>
+            <Input value={form.baseAddress} onChange={(e) => set("baseAddress", e.target.value)} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label>Empezás a las</Label>
+              <Input type="time" value={form.workingHoursStart} onChange={(e) => set("workingHoursStart", e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Terminás a las</Label>
+              <Input type="time" value={form.workingHoursEnd} onChange={(e) => set("workingHoursEnd", e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Duración típica (min)</Label>
+              <Input type="number" value={form.defaultDurationMinutes} onChange={(e) => set("defaultDurationMinutes", Number(e.target.value))} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cómo se repiten los servicios</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Frecuencia base</Label>
+            <div className="flex gap-2 items-center">
+              <span>Cada</span>
+              <Input type="number" className="w-20" value={form.recurrenceInterval} onChange={(e) => set("recurrenceInterval", Number(e.target.value))} />
+              <Select value={form.recurrenceUnit} onValueChange={(val) => set("recurrenceUnit", val)}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DAY">días</SelectItem>
+                  <SelectItem value="WEEK">semanas</SelectItem>
+                  <SelectItem value="MONTH">meses</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>¿Cómo contás el próximo vencimiento?</Label>
+            <Select value={form.recurrenceAnchor} onValueChange={(val) => set("recurrenceAnchor", val)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CALENDAR">Por período: el servicio del mes</SelectItem>
+                <SelectItem value="LAST_VISIT">Desde la última visita</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Nomenclatura y Servicios</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label>Servicio que se repite</Label>
+              <Input value={form.labelRecurringAgreement} onChange={(e) => set("labelRecurringAgreement", e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Visita única</Label>
+              <Input value={form.labelOneOffVisit} onChange={(e) => set("labelOneOffVisit", e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Trabajo múltiple</Label>
+              <Input value={form.labelMultiVisitJob} onChange={(e) => set("labelMultiVisitJob", e.target.value)} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Label className="mb-2 block">Servicios que ofrecés</Label>
+            <div className="flex gap-2 mb-2">
+              <Input value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())} />
+              <Button type="button" variant="outline" onClick={addService}>Agregar</Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {form.serviceTypes.map((st) => (
+                <Badge key={st} variant="secondary" className="cursor-pointer" onClick={() => set("serviceTypes", form.serviceTypes.filter(s => s !== st))}>
+                  {st} ×
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function MarcaTab() {
+  const utils = trpc.useUtils()
+  const tenant = trpc.tenant.current.useQuery()
+  const updateSettings = trpc.tenant.updateSettings.useMutation()
+
+  type FormType = {
+    brandPrimaryColor: string
+    brandSecondaryColor: string
+    fiscalName: string
+    fiscalId: string
+    fiscalAddress: string
+  }
+
+  const [form, setForm] = React.useState<FormType | null>(null)
+
+  React.useEffect(() => {
+    if (!tenant.data || form) return
+    const settings = tenant.data.settings
+    setForm({
+      brandPrimaryColor: settings?.brandPrimaryColor ?? "#000000",
+      brandSecondaryColor: settings?.brandSecondaryColor ?? "#ffffff",
+      fiscalName: settings?.fiscalName ?? "",
+      fiscalId: settings?.fiscalId ?? "",
+      fiscalAddress: settings?.fiscalAddress ?? "",
+    })
+  }, [tenant.data, form])
+
+  async function onSave() {
+    if (!form) return
+    try {
+      await updateSettings.mutateAsync({
+        brandPrimaryColor: form.brandPrimaryColor || null,
+        brandSecondaryColor: form.brandSecondaryColor || null,
+        fiscalName: form.fiscalName || null,
+        fiscalId: form.fiscalId || null,
+        fiscalAddress: form.fiscalAddress || null,
+      })
+      toast.success("Ajustes de marca guardados")
+      await utils.tenant.invalidate()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error")
+    }
+  }
+
+  if (!form) return <div className="animate-pulse h-48 bg-muted rounded-xl" />
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button onClick={onSave} disabled={updateSettings.isPending}>
+          <Save className="mr-2 h-4 w-4" />
+          Guardar cambios
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Marca</CardTitle>
+          <CardDescription>Colores corporativos e identidad.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>Color Primario</Label>
+            <div className="flex gap-2">
+              <Input type="color" value={form.brandPrimaryColor} onChange={(e) => setForm(c => c ? { ...c, brandPrimaryColor: e.target.value } : c)} className="w-16 h-10 p-1" />
+              <Input type="text" value={form.brandPrimaryColor} onChange={(e) => setForm(c => c ? { ...c, brandPrimaryColor: e.target.value } : c)} />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>Color Secundario</Label>
+            <div className="flex gap-2">
+              <Input type="color" value={form.brandSecondaryColor} onChange={(e) => setForm(c => c ? { ...c, brandSecondaryColor: e.target.value } : c)} className="w-16 h-10 p-1" />
+              <Input type="text" value={form.brandSecondaryColor} onChange={(e) => setForm(c => c ? { ...c, brandSecondaryColor: e.target.value } : c)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Datos Fiscales</CardTitle>
+          <CardDescription>Razón social e identificadores (CUIT/RFC).</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Nombre / Razón Social</Label>
+            <Input value={form.fiscalName} onChange={(e) => setForm(c => c ? { ...c, fiscalName: e.target.value } : c)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Identificador Fiscal (CUIT/RFC)</Label>
+            <Input value={form.fiscalId} onChange={(e) => setForm(c => c ? { ...c, fiscalId: e.target.value } : c)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Dirección Fiscal</Label>
+            <Input value={form.fiscalAddress} onChange={(e) => setForm(c => c ? { ...c, fiscalAddress: e.target.value } : c)} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function IntegracionesTab() {
+  const gcal = trpc.integrations.getGoogleCalendarStatus.useQuery()
+  const wa = trpc.integrations.getWhatsAppConfig.useQuery()
+  const smtp = trpc.integrations.getSmtpConfig.useQuery()
+  const wh = trpc.integrations.getWebhookConfig.useQuery()
+
+  const updateWa = trpc.integrations.updateWhatsAppConfig.useMutation()
+  const updateSmtp = trpc.integrations.updateSmtpConfig.useMutation()
+  const updateWh = trpc.integrations.updateWebhookConfig.useMutation()
+  const utils = trpc.useUtils()
+
+  const [waForm, setWaForm] = React.useState({ apiUrl: "", apiKey: "" })
+  const [smtpForm, setSmtpForm] = React.useState({ host: "", port: "", user: "", password: "", fromEmail: "" })
+  const [whForm, setWhForm] = React.useState({ url: "", events: "" })
+
+  React.useEffect(() => {
+    if (wa.data && !waForm.apiUrl) setWaForm({ apiUrl: wa.data.apiUrl || "", apiKey: "" })
+  }, [wa.data])
+
+  React.useEffect(() => {
+    if (smtp.data && !smtpForm.host) setSmtpForm({ host: smtp.data.host || "", port: smtp.data.port?.toString() || "", user: smtp.data.user || "", password: "", fromEmail: smtp.data.fromEmail || "" })
+  }, [smtp.data])
+
+  React.useEffect(() => {
+    if (wh.data && !whForm.url) setWhForm({ url: wh.data.url || "", events: wh.data.events.join(", ") })
+  }, [wh.data])
+
+  async function onSaveWa() {
+    try {
+      await updateWa.mutateAsync({ apiUrl: waForm.apiUrl || null, apiKey: waForm.apiKey || undefined })
+      toast.success("WhatsApp guardado")
+      utils.integrations.getWhatsAppConfig.invalidate()
+    } catch (e) { toast.error("Error al guardar") }
+  }
+
+  async function onSaveSmtp() {
+    try {
+      await updateSmtp.mutateAsync({
+        host: smtpForm.host || null,
+        port: smtpForm.port ? parseInt(smtpForm.port) : null,
+        user: smtpForm.user || null,
+        password: smtpForm.password || undefined,
+        fromEmail: smtpForm.fromEmail || null
+      })
+      toast.success("SMTP guardado")
+      utils.integrations.getSmtpConfig.invalidate()
+    } catch (e) { toast.error("Error al guardar") }
+  }
+
+  async function onSaveWh() {
+    try {
+      await updateWh.mutateAsync({
+        url: whForm.url || null,
+        events: whForm.events.split(",").map(e => e.trim()).filter(Boolean)
+      })
+      toast.success("Webhook guardado")
+      utils.integrations.getWebhookConfig.invalidate()
+    } catch (e) { toast.error("Error al guardar") }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Google Calendar</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-muted-foreground">Estado: {gcal.data?.connected ? "Conectado" : "Desconectado"}</p>
+          <Button disabled>Conectar con Google</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>WhatsApp API</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>API URL</Label>
+            <Input value={waForm.apiUrl} onChange={e => setWaForm(c => ({...c, apiUrl: e.target.value}))} />
+          </div>
+          <div className="grid gap-2">
+            <Label>API Key {wa.data?.hasApiKey ? "(Configurada)" : ""}</Label>
+            <Input type="password" value={waForm.apiKey} onChange={e => setWaForm(c => ({...c, apiKey: e.target.value}))} placeholder={wa.data?.hasApiKey ? "Dejar en blanco para mantener actual" : ""} />
+          </div>
+          <Button onClick={onSaveWa} disabled={updateWa.isPending} className="w-fit">Guardar WhatsApp</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SMTP</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Host</Label>
+              <Input value={smtpForm.host} onChange={e => setSmtpForm(c => ({...c, host: e.target.value}))} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Puerto</Label>
+              <Input value={smtpForm.port} onChange={e => setSmtpForm(c => ({...c, port: e.target.value}))} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Usuario</Label>
+              <Input value={smtpForm.user} onChange={e => setSmtpForm(c => ({...c, user: e.target.value}))} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Contraseña {smtp.data?.hasPassword ? "(Configurada)" : ""}</Label>
+              <Input type="password" value={smtpForm.password} onChange={e => setSmtpForm(c => ({...c, password: e.target.value}))} placeholder={smtp.data?.hasPassword ? "Dejar en blanco para mantener" : ""} />
+            </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label>Email de remitente</Label>
+              <Input value={smtpForm.fromEmail} onChange={e => setSmtpForm(c => ({...c, fromEmail: e.target.value}))} />
+            </div>
+          </div>
+          <Button onClick={onSaveSmtp} disabled={updateSmtp.isPending} className="w-fit">Guardar SMTP</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhooks</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>URL</Label>
+            <Input value={whForm.url} onChange={e => setWhForm(c => ({...c, url: e.target.value}))} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Eventos (separados por coma)</Label>
+            <Input value={whForm.events} onChange={e => setWhForm(c => ({...c, events: e.target.value}))} />
+          </div>
+          <Button onClick={onSaveWh} disabled={updateWh.isPending} className="w-fit">Guardar Webhooks</Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function IaTab() {
+  const ai = trpc.integrations.getAiConfig.useQuery()
+  const updateAi = trpc.integrations.updateAiConfig.useMutation()
+  const utils = trpc.useUtils()
+
+  const [form, setForm] = React.useState({ provider: "openai", apiKey: "" })
+
+  React.useEffect(() => {
+    if (ai.data && form.provider === "openai" && !form.apiKey) {
+      setForm({ provider: ai.data.provider, apiKey: "" })
+    }
+  }, [ai.data])
+
+  async function onSave() {
+    try {
+      await updateAi.mutateAsync({
+        provider: form.provider as "openai" | "anthropic" | "gemini" | "deepseek",
+        apiKey: form.apiKey || undefined
+      })
+      toast.success("Configuración IA guardada")
+      utils.integrations.getAiConfig.invalidate()
+    } catch (e) {
+      toast.error("Error al guardar IA")
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Inteligencia Artificial</CardTitle>
+          <CardDescription>
+            Configura tu propio proveedor de IA para los resúmenes y agentes.
+            {ai.data?.usingPlatformKey ? " Actualmente usando clave de la plataforma." : " Actualmente usando clave propia."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Proveedor</Label>
+            <Select value={form.provider} onValueChange={v => setForm(c => ({...c, provider: v}))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai">OpenAI</SelectItem>
+                <SelectItem value="anthropic">Anthropic</SelectItem>
+                <SelectItem value="gemini">Gemini</SelectItem>
+                <SelectItem value="deepseek">Deepseek</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>API Key {ai.data?.hasApiKey ? "(Configurada)" : ""}</Label>
+            <Input type="password" value={form.apiKey} onChange={e => setForm(c => ({...c, apiKey: e.target.value}))} placeholder={ai.data?.hasApiKey ? "Dejar en blanco para mantener" : ""} />
+          </div>
+          <Button onClick={onSave} disabled={updateAi.isPending} className="w-fit">Guardar IA</Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function SuscripcionTab() {
+  const sub = trpc.subscription.getCurrent.useQuery()
+
+  if (!sub.data) return <div className="animate-pulse h-48 bg-muted rounded-xl" />
+
+  const { planName, usage } = sub.data
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Tu Plan: {planName.toUpperCase()}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6">
+          <div className="grid gap-2">
+            <div className="flex justify-between">
+              <Label>Usuarios</Label>
+              <span className="text-sm text-muted-foreground">{usage.usersCount} / {usage.maxUsers}</span>
+            </div>
+            <Progress value={(usage.usersCount / usage.maxUsers) * 100} />
+          </div>
+          
+          <div className="grid gap-2">
+            <div className="flex justify-between">
+              <Label>Clientes Activos</Label>
+              <span className="text-sm text-muted-foreground">{usage.clientsCount} / {usage.maxClients}</span>
+            </div>
+            <Progress value={(usage.clientsCount / usage.maxClients) * 100} />
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex justify-between">
+              <Label>Visitas del Mes</Label>
+              <span className="text-sm text-muted-foreground">{usage.visitsThisMonth} / {usage.maxVisitsMonth}</span>
+            </div>
+            <Progress value={(usage.visitsThisMonth / usage.maxVisitsMonth) * 100} />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

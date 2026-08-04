@@ -139,9 +139,9 @@ export default function FacturacionPage() {
                 </p>
                 <div className="pt-4">
                   <span className="text-4xl font-extrabold tracking-tight">
-                    ${Number(plan.monthlyPriceArs).toLocaleString()}
+                    ${Number(plan.monthlyPriceUsd).toLocaleString()}
                   </span>
-                  <span className="text-xs text-[hsl(var(--muted-foreground))] font-medium ml-1"> ARS / mes</span>
+                  <span className="text-xs text-[hsl(var(--muted-foreground))] font-medium ml-1"> USD / mes</span>
                 </div>
               </div>
 
@@ -159,9 +159,9 @@ export default function FacturacionPage() {
                   <span>Hasta {plan.maxUsers} miembros de equipo</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className={`h-4 w-4 shrink-0 ${plan.aiEnabled ? 'text-emerald-400' : 'text-[hsl(var(--muted-foreground)/0.4)]'}`} />
-                  <span className={plan.aiEnabled ? 'font-semibold text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground)/0.4)] line-through'}>
-                    Asesor IA e Insights incluidos
+                  <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <span className="font-semibold text-[hsl(var(--foreground))]">
+                    Todas las funcionalidades incluidas
                   </span>
                 </div>
               </div>

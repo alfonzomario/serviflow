@@ -14,6 +14,8 @@ import { trpc } from '@/lib/trpc';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { VisitForm } from '@/components/agenda/VisitForm';
+import { DayDetailModal } from '@/components/agenda/DayDetailModal';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface StatusStyle {
   label: string;
@@ -79,6 +81,10 @@ export default function AgendaPage() {
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [slotStart, setSlotStart] = useState<Date | null>(null);
   const [slotDuration, setSlotDuration] = useState(45);
+
+  // Day View Modal State
+  const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [selectedDayDate, setSelectedDayDate] = useState<Date | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -154,6 +160,11 @@ export default function AgendaPage() {
     setDialogOpen(true);
   }
 
+  function openDayDetail(date: Date) {
+    setSelectedDayDate(date);
+    setDayModalOpen(true);
+  }
+
   /** Shared by drag-move and resize: persist, and roll back the UI on failure. */
   async function persistReschedule(arg: EventDropArg | EventResizeDoneArg) {
     const start = arg.event.start;
@@ -209,7 +220,7 @@ export default function AgendaPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground">
-            Gestioná los turnos y visitas programadas. De 07:00 a 21:00 hs.
+            Gestioná los turnos y visitas programadas. Tocá cualquier día para ver sus trabajos.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -232,7 +243,7 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Leyenda de Estados (inspirada en la app legacy) */}
+      {/* Leyenda de Estados */}
       <div className="flex flex-wrap items-center gap-3 bg-card p-3 rounded-lg border border-border shadow-sm text-xs font-medium">
         <span className="text-muted-foreground font-semibold">Estados:</span>
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
@@ -255,7 +266,13 @@ export default function AgendaPage() {
         })}
       </div>
 
-      <Card className="overflow-hidden border border-border bg-card p-4 shadow-md rounded-xl">
+      <Card className="overflow-hidden border border-border bg-card p-4 shadow-md rounded-xl relative">
+        {isLoading && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-card/70 backdrop-blur-xs">
+            <LoadingSpinner label="Cargando agenda de turnos..." size="lg" />
+          </div>
+        )}
+
         <style
           dangerouslySetInnerHTML={{
             __html: `
@@ -286,9 +303,10 @@ export default function AgendaPage() {
             color: var(--primary-foreground) !important;
           }
           .fc-day-today { background-color: rgba(99, 102, 241, 0.04) !important; }
-          .fc-timegrid-slot { height: 2.5rem !important; }
+          .fc-timegrid-slot { height: 2.25rem !important; }
           .fc-timegrid-slot-label { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); }
-          .fc-col-header-cell { padding: 8px 0 !important; }
+          .fc-col-header-cell { padding: 8px 0 !important; cursor: pointer; }
+          .fc-col-header-cell:hover { background-color: rgba(99, 102, 241, 0.08) !important; }
           .fc-col-header-cell-cushion { color: var(--foreground); font-weight: 600; font-size: 0.875rem; text-decoration: none !important; }
           .fc-timegrid-event { min-height: 24px !important; border-radius: 0.375rem !important; }
           .fc-timegrid-event-short .fc-event-main, .fc-timegrid-event .fc-event-main {
@@ -312,6 +330,8 @@ export default function AgendaPage() {
             z-index: 10 !important;
           }
           .fc-v-event, .fc-h-event { background-color: transparent !important; }
+          .fc-daygrid-day-number { font-weight: 700; cursor: pointer; }
+          .fc-daygrid-day-number:hover { color: #6366f1; text-decoration: underline; }
         `,
           }}
         />
@@ -335,7 +355,8 @@ export default function AgendaPage() {
           height="75vh"
           slotMinTime="07:00:00"
           slotMaxTime="21:00:00"
-          slotDuration="01:00:00"
+          slotDuration="00:30:00"
+          snapDuration="00:15:00"
           slotLabelInterval="01:00:00"
           expandRows={true}
           allDaySlot={false}
@@ -343,6 +364,8 @@ export default function AgendaPage() {
           editable
           selectable
           selectMirror
+          navLinks={true}
+          navLinkDayClick={(date) => openDayDetail(date)}
           dayMaxEvents
           eventContent={renderEventContent}
           datesSet={(arg) => setCurrentDate(arg.view.currentStart)}
@@ -351,15 +374,25 @@ export default function AgendaPage() {
             const durationMinutes = Math.round(
               (arg.end.getTime() - arg.start.getTime()) / 60000
             );
-            // A month-view click selects a whole day; fall back to the default slot.
-            openNewVisit(arg.start, durationMinutes >= 1440 ? 45 : durationMinutes);
+            if (durationMinutes >= 1440) {
+              // Month view click on day cell -> open day detail modal!
+              openDayDetail(arg.start);
+            } else {
+              openNewVisit(arg.start, durationMinutes);
+            }
           }}
           eventDrop={persistReschedule}
           eventResize={persistReschedule}
         />
       </Card>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Cargando visitas…</p>}
+      <DayDetailModal
+        open={dayModalOpen}
+        onOpenChange={setDayModalOpen}
+        date={selectedDayDate}
+        onEditVisit={openExistingVisit}
+        onNewVisitOnDate={(d) => openNewVisit(d, 45)}
+      />
 
       <VisitForm
         open={dialogOpen}
@@ -371,4 +404,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-

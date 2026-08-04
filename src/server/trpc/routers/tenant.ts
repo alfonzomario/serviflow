@@ -143,6 +143,9 @@ export const tenantRouter = router({
           .string()
           .regex(/^#[0-9a-fA-F]{6}$/, 'Formato esperado #RRGGBB')
           .nullish(),
+        fiscalName: z.string().nullish(),
+        fiscalId: z.string().nullish(),
+        fiscalAddress: z.string().nullish(),
       })
     )
     .mutation(async ({ ctx, input }) => {

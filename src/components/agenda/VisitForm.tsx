@@ -463,7 +463,7 @@ export function VisitForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-2xl border border-border bg-card shadow-2xl flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar visita" : "Nueva visita"}</DialogTitle>
           <DialogDescription>

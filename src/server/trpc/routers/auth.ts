@@ -24,6 +24,14 @@ export const authRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const config = await ctx.db.platformConfig.findFirst();
+      if (config?.registrationMode === 'closed' || config?.registrationMode === 'invite_only') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'El registro directo no está habilitado. Contactá con nuestro equipo de ventas para activar tu empresa.',
+        });
+      }
+
       const email = input.email.toLowerCase().trim();
 
       const existing = await ctx.db.user.findFirst({ where: { email } });

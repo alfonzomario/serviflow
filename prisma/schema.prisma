@@ -81,6 +81,10 @@ enum ImportStatus {
   FAILED
   ROLLED_BACK
 }
+enum AuditScope {
+  TENANT   // Action within a tenant
+  PLATFORM // Global SuperAdmin action
+}
 
 model Tenant {
   id        String   @id @default(uuid()) @db.Uuid
@@ -110,22 +114,20 @@ model Tenant {
   @@map("tenants")
 }
 
+/// Size-based plans: ALL features enabled in ALL plans.
+/// Differentiation is purely dimensional (users, clients, visits/mo).
 model Plan {
   id              String  @id @default(uuid()) @db.Uuid
-  name            String  @unique @db.VarChar(50) // 'free', 'pro', 'business'
+  name            String  @unique @db.VarChar(50) // 'solo', 'equipo', 'empresa'
   displayName     String  @map("display_name") @db.VarChar(100)
-  maxUsers        Int     @default(2) @map("max_users")
-  maxClients      Int     @default(50) @map("max_clients")
-  maxVisitsMonth  Int     @default(100) @map("max_visits_month")
-  aiEnabled       Boolean @default(false) @map("ai_enabled")
-  calendarSync    Boolean @default(false) @map("calendar_sync")
-  clientPortal    Boolean @default(false) @map("client_portal")
-  customBranding  Boolean @default(false) @map("custom_branding")
-  apiAccess       Boolean @default(false) @map("api_access")
-  historyYears    Int     @default(1) @map("history_years")
-  monthlyPriceArs Decimal @default(0) @map("monthly_price_ars") @db.Decimal(10,2)
-  annualPriceArs  Decimal @default(0) @map("annual_price_ars") @db.Decimal(10,2)
+  maxUsers        Int     @default(1) @map("max_users")
+  maxClients      Int     @default(30) @map("max_clients")
+  maxVisitsMonth  Int     @default(80) @map("max_visits_month")
+  // Pricing in USD (LATAM pricing applied via exchange rate in PlatformConfig)
+  monthlyPriceUsd Decimal @default(0) @map("monthly_price_usd") @db.Decimal(10,2)
+  annualPriceUsd  Decimal @default(0) @map("annual_price_usd") @db.Decimal(10,2)
   sortOrder       Int     @default(0) @map("sort_order")
+  isActive        Boolean @default(true) @map("is_active")
 
   subscriptions Subscription[]
 
@@ -137,10 +139,18 @@ model Subscription {
   tenantId            String   @unique @map("tenant_id") @db.Uuid
   planId              String?  @map("plan_id") @db.Uuid
   status              String   @default("active") @db.VarChar(20)
-  planName            String   @default("pro") @map("plan_name") @db.VarChar(50)
+                               // active | past_due | suspended | cancelled
+  planName            String   @default("solo") @map("plan_name") @db.VarChar(50)
+  billingCycle        String   @default("monthly") @map("billing_cycle") @db.VarChar(10)
+                               // monthly | annual
   monthlyPrice        Decimal  @default(0) @map("monthly_price") @db.Decimal(10,2)
   currentPeriodStart  DateTime @map("current_period_start")
   currentPeriodEnd    DateTime @map("current_period_end")
+  // SuperAdmin overrides: give a tenant more capacity without changing plan
+  overrideMaxUsers       Int?  @map("override_max_users")
+  overrideMaxClients     Int?  @map("override_max_clients")
+  overrideMaxVisitsMonth Int?  @map("override_max_visits_month")
+  notes               String? // Internal SuperAdmin notes
   paymentProviderId   String?  @map("payment_provider_id")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
@@ -414,30 +424,55 @@ model TenantSettings {
   workingHoursEnd         String  @default("15:00") @map("working_hours_end") @db.VarChar(5)
 
   // Business-wide defaults, overridable per client.
-  // How often a recurring agreement comes due.
   recurrenceUnit          RecurrenceUnit @default(MONTH) @map("recurrence_unit")
   recurrenceInterval      Int     @default(1) @map("recurrence_interval")
   recurrenceAnchor        RecurrenceAnchor @default(CALENDAR) @map("recurrence_anchor")
-  /// Whether a one-off visit settles the period, or only recurring ones do.
   oneOffSettlesPeriod     Boolean @default(false) @map("one_off_settles_period")
-  // Minimum days between two applications of the same multi-visit job.
-  // 0 means the rubro has no technical waiting period. Advisory: the UI warns
-  // but never blocks, and nothing is ever scheduled automatically.
   minDaysBetweenApplications Int  @default(15) @map("min_days_between_applications")
 
-  // What this business calls each of the three things. Shown in the UI so the
-  // app speaks the rubro's language instead of a fumigator's.
+  // Labels
   labelRecurringAgreement String  @default("Abono") @map("label_recurring_agreement") @db.VarChar(50)
   labelOneOffVisit        String  @default("Especial") @map("label_one_off_visit") @db.VarChar(50)
   labelMultiVisitJob      String  @default("Tratamiento") @map("label_multi_visit_job") @db.VarChar(50)
   defaultDurationMinutes  Int     @default(45) @map("default_duration_minutes")
 
-  /// Set once the owner finishes the onboarding wizard.
   onboardedAt             DateTime? @map("onboarded_at")
   customServiceTypes      Json    @default("[]") @map("custom_service_types")
   customVisitStatuses     Json    @default("[]") @map("custom_visit_statuses")
   brandPrimaryColor       String? @map("brand_primary_color") @db.VarChar(7)
   brandSecondaryColor     String? @map("brand_secondary_color") @db.VarChar(7)
+
+  // ── Google Calendar OAuth ──────────────────────────────
+  googleRefreshToken      String?  @map("google_refresh_token")
+  googleAccessToken       String?  @map("google_access_token")
+  googleTokenExpiresAt    DateTime? @map("google_token_expires_at")
+  googleCalendarEnabled   Boolean  @default(false) @map("google_calendar_enabled")
+  icalFeedToken           String?  @unique @map("ical_feed_token") @db.VarChar(64)
+
+  // ── WhatsApp propio del tenant ─────────────────────────
+  waOwnApiUrl             String?  @map("wa_own_api_url")
+  waOwnApiKeyEncrypted    String?  @map("wa_own_api_key_encrypted")
+
+  // ── SMTP propio del tenant ─────────────────────────────
+  smtpOwnHost             String?  @map("smtp_own_host")
+  smtpOwnPort             Int?     @map("smtp_own_port")
+  smtpOwnUser             String?  @map("smtp_own_user")
+  smtpOwnPassEncrypted    String?  @map("smtp_own_pass_encrypted")
+  smtpOwnFromEmail        String?  @map("smtp_own_from_email")
+
+  // ── Webhooks ───────────────────────────────────────────
+  webhookUrl              String?  @map("webhook_url")
+  webhookSecret           String?  @map("webhook_secret") @db.VarChar(64)
+  webhookEvents           String[] @map("webhook_events")
+
+  // ── BYOK AI ────────────────────────────────────────────
+  aiOwnProvider           String?  @map("ai_own_provider") @db.VarChar(20)
+  aiOwnKeyEncrypted       String?  @map("ai_own_key_encrypted")
+
+  // ── Datos fiscales ─────────────────────────────────────
+  fiscalName              String?  @map("fiscal_name")
+  fiscalId                String?  @map("fiscal_id") @db.VarChar(20)
+  fiscalAddress           String?  @map("fiscal_address")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -445,21 +480,23 @@ model TenantSettings {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
-  userId      String?  @map("user_id") @db.Uuid
-  action      String   @db.VarChar(50)
-  entityType  String   @map("entity_type") @db.VarChar(50)
-  entityId    String?  @map("entity_id") @db.Uuid
-  changes     Json?    @default("{}")
-  ipAddress   String?  @map("ip_address") @db.VarChar(45)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String     @id @default(uuid()) @db.Uuid
+  tenantId    String?    @map("tenant_id") @db.Uuid
+  userId      String?    @map("user_id") @db.Uuid
+  scope       AuditScope @default(TENANT)
+  action      String     @db.VarChar(50)
+  entityType  String     @map("entity_type") @db.VarChar(50)
+  entityId    String?    @map("entity_id") @db.Uuid
+  changes     Json?      @default("{}")
+  ipAddress   String?    @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime   @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User?  @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id])
 
   @@index([tenantId, createdAt])
   @@index([tenantId, entityType, entityId])
+  @@index([scope, createdAt])
   @@map("audit_logs")
 }
 
@@ -486,4 +523,48 @@ model ImportHistory {
 
   @@index([tenantId, startedAt])
   @@map("import_history")
+}
+
+// ─── Platform-wide configuration (singleton row) ─────────────
+model PlatformConfig {
+  id                    String  @id @default(uuid()) @db.Uuid
+  // AI API Keys (encrypted at rest with AES-256-GCM)
+  globalAiProvider      String? @map("global_ai_provider") @db.VarChar(20)
+  globalAiKeyEncrypted  String? @map("global_ai_key_encrypted")
+  allowTenantBYOK       Boolean @default(false) @map("allow_tenant_byok")
+  defaultAiMonthlyTokens Int    @default(100000) @map("default_ai_monthly_tokens")
+  // Global SMTP
+  smtpHost              String? @map("smtp_host")
+  smtpPort              Int?    @map("smtp_port")
+  smtpUser              String? @map("smtp_user")
+  smtpPassEncrypted     String? @map("smtp_pass_encrypted")
+  smtpFromEmail         String? @map("smtp_from_email")
+  // Global WhatsApp API
+  waApiUrl              String? @map("wa_api_url")
+  waApiKeyEncrypted     String? @map("wa_api_key_encrypted")
+  // Registration control
+  registrationMode      String  @default("closed") @map("registration_mode") @db.VarChar(20)
+  salesWhatsappNumber   String? @map("sales_whatsapp_number")
+  salesFormUrl          String? @map("sales_form_url")
+  // LATAM pricing
+  arsExchangeRate       Decimal @default(1200) @map("ars_exchange_rate") @db.Decimal(10,2)
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_config")
+}
+
+// ─── AI usage tracking per tenant ────────────────────────────
+model AiUsageLog {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  provider         String   @db.VarChar(20)
+  model            String   @db.VarChar(50)
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  estimatedCostUsd Decimal  @default(0) @map("estimated_cost_usd") @db.Decimal(8,6)
+  endpoint         String   @db.VarChar(100)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("ai_usage_logs")
 }

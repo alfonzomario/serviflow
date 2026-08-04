@@ -31,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!user || !user.passwordHash) {
-          return null;
+          throw new Error('Tu cuenta aún no está dada de alta. Contactá con nuestro equipo de ventas para activar tu empresa.');
         }
 
         if (!user.isActive) {

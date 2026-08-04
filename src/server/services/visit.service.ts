@@ -2,6 +2,8 @@ import { db } from '../db';
 import { tenantWhere } from '../lib/tenant-context';
 import type { VisitStatus } from '@prisma/client';
 import { buildPendingItems, checkApplicationGap } from './pending';
+import { dispatchWebhook } from './webhook.service';
+import { syncVisitToGoogle, deleteCalendarEvent } from './google-calendar.service';
 
 // Valid status transitions (state machine)
 const STATUS_TRANSITIONS: Record<VisitStatus, VisitStatus[]> = {
@@ -24,14 +26,24 @@ export const onVisitStatusChange = async (
   newStatus: VisitStatus,
   tenantId: string
 ) => {
+  // Fire webhook in background
+  dispatchWebhook(tenantId, 'visit.status_changed', { visitId, newStatus }).catch(console.error);
+
+  const visit = await db.visit.findUnique({
+    where: { id: visitId },
+    select: { price: true, priceWaived: true, clientId: true, scheduledAt: true, calendarEventId: true },
+  });
+
+  if (!visit) return;
+
+  if (newStatus === 'CONFIRMED') {
+    // Sync to Google Calendar
+    syncVisitToGoogle(visitId, tenantId).catch(console.error);
+  }
+
   if (newStatus === 'COMPLETED') {
     // Auto-create INCOME transaction for the visit
-    const visit = await db.visit.findUnique({
-      where: { id: visitId },
-      select: { price: true, priceWaived: true, clientId: true, scheduledAt: true },
-    });
-
-    if (visit && visit.price && Number(visit.price) > 0 && !visit.priceWaived) {
+    if (visit.price && Number(visit.price) > 0 && !visit.priceWaived) {
       await db.transaction.create({
         data: {
           tenantId,
@@ -63,7 +75,9 @@ export const onVisitStatusChange = async (
       data: { deletedAt: new Date() },
     });
 
-    // TODO: Delete Google Calendar event via calendar.service.ts
+    if (visit.calendarEventId) {
+      deleteCalendarEvent(visit.calendarEventId, tenantId).catch(console.error);
+    }
   }
 };
 

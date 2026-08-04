@@ -15,6 +15,7 @@ import { aiRouter } from './routers/ai';
 import { superadminRouter } from './routers/superadmin';
 import { subscriptionRouter } from './routers/subscription';
 import { portalRouter } from './routers/portal';
+import { integrationsRouter } from './routers/integrations';
 
 export const appRouter = router({
   auth: authRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   superadmin: superadminRouter,
   subscription: subscriptionRouter,
   portal: portalRouter,
+  integrations: integrationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
