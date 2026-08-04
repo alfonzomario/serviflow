@@ -472,7 +472,7 @@ function IntegracionesTab() {
                   window.location.href = "/api/integrations/google/connect"
                 }}
               >
-                Conectar con Google (Automático)
+                Conectar con Google
               </Button>
             )}
           </div>

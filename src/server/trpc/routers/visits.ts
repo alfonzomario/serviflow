@@ -291,13 +291,18 @@ export const visitsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, newJobApplications, ...data } = input;
+      const { id, newJobApplications, clientId, ...data } = input;
 
       const visit = await ctx.db.visit.findFirst({
         where: { id, ...tenantWhere(ctx.tenantId) },
         select: { id: true, clientId: true, jobId: true, serviceType: true, visitType: true },
       });
       if (!visit) throw new TRPCError({ code: 'NOT_FOUND' });
+
+      const updateData: Record<string, any> = {
+        ...data,
+        ...(clientId && { clientId }),
+      };
 
       if (newJobApplications) {
         if (visit.jobId) {
@@ -309,27 +314,20 @@ export const visitsRouter = router({
           const job = await ctx.db.job.create({
             data: {
               tenantId: ctx.tenantId,
-              clientId: visit.clientId,
+              clientId: clientId ?? visit.clientId,
               serviceType: data.serviceType ?? visit.serviceType,
               visitType: data.visitType ?? visit.visitType,
               totalApplications: newJobApplications,
             },
           });
-          const updateData: Prisma.VisitUpdateInput = {
-            ...data,
-            job: { connect: { id: job.id } },
-            applicationNumber: 1,
-          };
-          return ctx.db.visit.update({
-            where: { id, tenantId: ctx.tenantId },
-            data: updateData,
-          });
+          updateData.job = { connect: { id: job.id } };
+          updateData.applicationNumber = 1;
         }
       }
 
       return ctx.db.visit.update({
         where: { id, tenantId: ctx.tenantId },
-        data,
+        data: updateData as Prisma.VisitUpdateInput,
       });
     }),
 

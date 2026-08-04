@@ -221,10 +221,10 @@ export default function AgendaPage() {
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('google_connected') === 'true') {
-      toast.success('¡Google Calendar conectado de forma 100% automática!');
+      toast.success('¡Google Calendar conectado exitosamente!');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (urlParams.get('error') === 'google_credentials_missing') {
-      toast.error('Para conectar Google Calendar, ingresá tus credenciales OAuth en Ajustes -> Integraciones.');
+      toast.error('Google Client ID no configurado. Para activar la conexión directa con Google, configurá las credenciales en Ajustes -> Integraciones o en el archivo .env');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (urlParams.get('error')) {
       toast.error('No se pudo completar la conexión con Google Calendar.');
@@ -246,7 +246,7 @@ export default function AgendaPage() {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-xs">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                Google Calendar Sincronizado
+                Google Calendar Conectado
               </span>
             </div>
           ) : (
@@ -257,7 +257,7 @@ export default function AgendaPage() {
               }}
             >
               <CalendarIcon className="h-4 w-4" />
-              Conectar Google Calendar (Automático)
+              Conectar Google Calendar
             </Button>
           )}
           <Button onClick={() => openNewVisit()}>
