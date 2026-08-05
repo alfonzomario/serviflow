@@ -359,15 +359,18 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
     return { count: 0 };
   }
 
-  // 5. Re-sync all active visits into the brand new calendar
+  // 5. Re-sync all active visits into the brand new calendar in batches
   const visits = await db.visit.findMany({
     where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
     select: { id: true },
   });
 
-  for (const v of visits) {
-    await syncVisitToGoogle(v.id, tenantId).catch(console.error);
-    await new Promise((r) => setTimeout(r, 120));
+  for (let i = 0; i < visits.length; i += 10) {
+    const batch = visits.slice(i, i + 10);
+    await Promise.all(
+      batch.map((v) => syncVisitToGoogle(v.id, tenantId).catch(console.error))
+    );
+    await new Promise((r) => setTimeout(r, 150));
   }
 
   return { count: visits.length };
