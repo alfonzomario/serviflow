@@ -132,7 +132,7 @@ async function fetchAllEvents(
   let pageToken: string | undefined;
 
   do {
-    const params = new URLSearchParams({ maxResults: '250' });
+    const params = new URLSearchParams({ maxResults: '250', showDeleted: 'false' });
     if (pageToken) params.set('pageToken', pageToken);
     if (extraParams) {
       const extra = new URLSearchParams(extraParams);
@@ -154,27 +154,33 @@ async function fetchAllEvents(
   return allItems;
 }
 
-/** Deletes a list of events from a calendar with rate-limiting */
 async function deleteEvents(
   accessToken: string,
   calendarId: string,
   eventIds: string[]
 ): Promise<number> {
   let count = 0;
-  for (const id of eventIds) {
-    try {
-      await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${id}`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${accessToken}` },
+  // Process in batches of 10 to avoid Vercel timeouts (10s max)
+  for (let i = 0; i < eventIds.length; i += 10) {
+    const batch = eventIds.slice(i, i + 10);
+    await Promise.all(
+      batch.map(async (id) => {
+        try {
+          await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${id}`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
+          );
+          count++;
+        } catch (e) {
+          console.error(`Failed to delete event ${id}:`, e);
         }
-      );
-      count++;
-    } catch (e) {
-      console.error(`Failed to delete event ${id}:`, e);
-    }
-    await new Promise((r) => setTimeout(r, 60));
+      })
+    );
+    // Small delay between batches to respect rate limits
+    await new Promise((r) => setTimeout(r, 100));
   }
   return count;
 }
