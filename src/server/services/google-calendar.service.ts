@@ -1,6 +1,24 @@
 import { db } from "../db";
 import { decryptIfPresent } from "../lib/encryption";
 
+/**
+ * FORMATEADOR FUERTE DE ZONA HORARIA
+ * Fuerza a que una fecha de Prisma se convierta en un string local crudo ("2026-08-07T09:30:00")
+ * reflejando exactamente la hora que el usuario ve en Argentina, ignorando la zona horaria del servidor.
+ */
+function toBuenosAiresTimeString(date: Date) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const p = {} as Record<string, string>;
+  for (const part of parts) p[part.type] = part.value;
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
+}
+
 /** Helper to get a valid Google Access Token, refreshing it if expired using the refresh token */
 async function getValidAccessToken(tenantId: string): Promise<string | null> {
   const settings = await db.tenantSettings.findUnique({
@@ -218,8 +236,8 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
     colorId: '9', // Electric Blue (Peacock)
-    start: { dateTime: startTime.toISOString() },
-    end: { dateTime: endTime.toISOString() },
+    start: { dateTime: toBuenosAiresTimeString(startTime), timeZone: 'America/Argentina/Buenos_Aires' },
+    end: { dateTime: toBuenosAiresTimeString(endTime), timeZone: 'America/Argentina/Buenos_Aires' },
   };
 
   try {
@@ -245,7 +263,7 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     // --- DEDUPLICATION: search for existing event with same title & start time ---
     const existingEvents = await fetchAllEvents(accessToken, calendarId);
     const duplicate = existingEvents.find(
-      (e) => e.summary === title && e.start?.dateTime === startTime.toISOString()
+      (e) => e.summary === title && e.start?.dateTime === `${toBuenosAiresTimeString(startTime)}-03:00`
     );
 
     if (duplicate) {
@@ -405,8 +423,8 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       location: v.client.address || '',
       description: `Cliente: ${v.client.name}\nTeléfono: ${v.client.phone || 'N/I'}\nDirección: ${v.client.address || 'N/I'}\nNotas: ${v.notes || 'Sin observaciones'}`,
       colorId: '9',
-      start: { dateTime: startTime.toISOString() },
-      end: { dateTime: endTime.toISOString() },
+      start: { dateTime: toBuenosAiresTimeString(startTime), timeZone: 'America/Argentina/Buenos_Aires' },
+      end: { dateTime: toBuenosAiresTimeString(endTime), timeZone: 'America/Argentina/Buenos_Aires' },
     };
 
     try {
