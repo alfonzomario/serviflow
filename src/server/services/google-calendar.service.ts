@@ -93,8 +93,12 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
 
+  const title = visit.serviceType && visit.serviceType !== 'Servicio'
+    ? `SF - ${visit.client.name} (${visit.serviceType})`
+    : `SF - ${visit.client.name}`;
+
   const eventPayload = {
-    summary: `${visit.client.name} — ${visit.serviceType || 'Servicio'}`,
+    summary: title,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
     colorId: '9', // Official Google Calendar Electric Blue / Peacock color
