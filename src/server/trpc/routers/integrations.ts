@@ -104,26 +104,7 @@ export const integrationsRouter = router({
       });
     }),
 
-  disconnectGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
-    await ctx.db.tenantSettings.upsert({
-      where: { tenantId: ctx.tenantId },
-      create: {
-        tenantId: ctx.tenantId,
-        googleRefreshToken: null,
-        googleAccessToken: null,
-        googleTokenExpiresAt: null,
-        googleCalendarId: null,
-        googleCalendarEnabled: false,
-      },
-      update: {
-        googleRefreshToken: null,
-        googleAccessToken: null,
-        googleTokenExpiresAt: null,
-        googleCalendarId: null,
-        googleCalendarEnabled: false,
-      },
-    });
-  }),
+
 
   getIcalFeedUrl: ownerProcedure.query(async ({ ctx }) => {
     let settings = await ctx.db.tenantSettings.findUnique({
