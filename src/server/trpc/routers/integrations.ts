@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { router, ownerProcedure } from '../trpc';
 import { encrypt, decrypt, encryptIfPresent, decryptIfPresent } from '../../lib/encryption';
-import { syncVisitToGoogle, cleanLegacyGoogleEvents } from '../../services/google-calendar.service';
+import { syncVisitToGoogle, cleanAndResyncAllServiFlowEvents } from '../../services/google-calendar.service';
 import crypto from 'crypto';
 
 export const integrationsRouter = router({
@@ -29,37 +29,18 @@ export const integrationsRouter = router({
   }),
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
-    // Reset calendarEventId so old gray iCal events are cleanly replaced with fresh Electric Blue events
-    await ctx.db.visit.updateMany({
+    // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
+    cleanAndResyncAllServiFlowEvents(ctx.tenantId).catch(console.error);
+
+    const count = await ctx.db.visit.count({
       where: {
         tenantId: ctx.tenantId,
         status: { not: 'CANCELLED' },
         scheduledAt: { not: null },
       },
-      data: { calendarEventId: null },
     });
 
-    const visits = await ctx.db.visit.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        status: { not: 'CANCELLED' },
-        scheduledAt: { not: null },
-      },
-      select: { id: true },
-    });
-
-    // Process visits in background with 150ms delay between calls to comply with Google API rate limits (5 req/sec)
-    (async () => {
-      // First, automatically delete old gray legacy events (titled "— Servicio") from primary Google Calendar
-      await cleanLegacyGoogleEvents(ctx.tenantId).catch(console.error);
-
-      for (const v of visits) {
-        await syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error);
-        await new Promise((r) => setTimeout(r, 150));
-      }
-    })().catch(console.error);
-
-    return { count: visits.length };
+    return { count };
   }),
 
   updateGoogleCredentials: ownerProcedure
