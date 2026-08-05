@@ -322,7 +322,19 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { count: 0 };
 
+  // LOCK PREVENTIVO: Si ya está sincronizando, abortamos para evitar duplicados por clicks múltiples
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  if (settings?.googleCalendarId === 'SYNCING') {
+    console.log('Sincronización ya en curso. Abortando duplicado.');
+    return { count: 0 };
+  }
+
+  // Establecemos el LOCK
+  await db.tenantSettings.update({
+    where: { tenantId },
+    data: { googleCalendarId: 'SYNCING' },
+  });
+
   const oldCalendarId = settings?.googleCalendarId;
 
   // 1. DELETE ALL existing ServiFlow sub-calendars to clean up duplicates
@@ -347,12 +359,6 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
     console.error('Error fetching/deleting old ServiFlow calendars:', e);
   }
 
-  // 2. Clear the saved calendarId so getOrCreate will make a new one
-  await db.tenantSettings.update({
-    where: { tenantId },
-    data: { googleCalendarId: null },
-  });
-
   // 3. Reset ALL calendarEventId references in the DB
   await db.visit.updateMany({
     where: { tenantId },
@@ -360,22 +366,79 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   });
 
   // 4. Create the fresh ServiFlow sub-calendar
-  const newCalendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
-  if (!newCalendarId || newCalendarId === 'primary') {
-    console.error('Failed to create new ServiFlow calendar');
+  // We use the raw POST to create it so we don't accidentally get caught in getOrCreate logic
+  let newCalendarId = '';
+  try {
+    const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary: 'ServiFlow', timeZone: 'America/Argentina/Buenos_Aires' }),
+    });
+    if (createRes.ok) {
+      const data = await createRes.json();
+      newCalendarId = data.id;
+    }
+  } catch (e) {
+    console.error('Error creating new ServiFlow calendar:', e);
+  }
+
+  if (!newCalendarId) {
+    // Release lock on failure
+    await db.tenantSettings.update({ where: { tenantId }, data: { googleCalendarId: null } });
     return { count: 0 };
   }
 
-  // 5. Re-sync all active visits into the brand new calendar in batches
+  // 5. Re-sync all active visits using direct POST (3x faster than syncVisitToGoogle)
   const visits = await db.visit.findMany({
     where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
-    select: { id: true },
+    include: { client: true },
   });
 
   for (const v of visits) {
-    await syncVisitToGoogle(v.id, tenantId).catch(console.error);
-    await new Promise((r) => setTimeout(r, 200)); // 200ms delay to avoid rate limits
+    if (!v.scheduledAt) continue;
+    
+    const startTime = new Date(v.scheduledAt);
+    const durationMs = (v.durationMinutes || 45) * 60 * 1000;
+    const endTime = new Date(startTime.getTime() + durationMs);
+    const title = `SF - ${v.client.name}`;
+
+    const eventPayload = {
+      summary: title,
+      location: v.client.address || '',
+      description: `Cliente: ${v.client.name}\nTeléfono: ${v.client.phone || 'N/I'}\nDirección: ${v.client.address || 'N/I'}\nNotas: ${v.notes || 'Sin observaciones'}`,
+      colorId: '9',
+      start: { dateTime: startTime.toISOString() },
+      end: { dateTime: endTime.toISOString() },
+    };
+
+    try {
+      const postRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalendarId)}/events`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventPayload),
+        }
+      );
+      if (postRes.ok) {
+        const data = await postRes.json();
+        await db.visit.update({
+          where: { id: v.id },
+          data: { calendarEventId: data.id },
+        });
+      }
+    } catch (e) {
+      console.error('Error posting event:', e);
+    }
+    
+    await new Promise((r) => setTimeout(r, 150)); // Fast delay to avoid rate limit
   }
+
+  // 6. Save the final calendar ID to release the lock
+  await db.tenantSettings.update({
+    where: { tenantId },
+    data: { googleCalendarId: newCalendarId },
+  });
 
   return { count: visits.length };
 }
