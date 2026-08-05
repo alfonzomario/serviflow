@@ -38,13 +38,12 @@ export const integrationsRouter = router({
       select: { id: true },
     });
 
-    let count = 0;
-    for (const v of visits) {
-      await syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error);
-      count++;
-    }
+    // Fire synchronization in parallel in background so UI returns instantly
+    Promise.all(
+      visits.map((v) => syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error))
+    ).catch(console.error);
 
-    return { count };
+    return { count: visits.length };
   }),
 
   updateGoogleCredentials: ownerProcedure
