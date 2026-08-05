@@ -211,15 +211,19 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
   const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const endTime = new Date(startTime.getTime() + durationMs);
 
-  const title = `SF - ${visit.serviceType || 'Servicio'} - ${visit.client.name}`;
+  const title = `SF - ${visit.client.name}`;
+
+  // Fix timezone shift: DB stores local time as UTC, so we strip 'Z' and force Argentina timezone
+  const startStr = startTime.toISOString().replace('Z', '');
+  const endStr = endTime.toISOString().replace('Z', '');
 
   const eventPayload = {
     summary: title,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
     colorId: '9', // Electric Blue (Peacock)
-    start: { dateTime: startTime.toISOString() },
-    end: { dateTime: endTime.toISOString() },
+    start: { dateTime: startStr, timeZone: 'America/Argentina/Buenos_Aires' },
+    end: { dateTime: endStr, timeZone: 'America/Argentina/Buenos_Aires' },
   };
 
   try {
@@ -365,12 +369,9 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
     select: { id: true },
   });
 
-  for (let i = 0; i < visits.length; i += 10) {
-    const batch = visits.slice(i, i + 10);
-    await Promise.all(
-      batch.map((v) => syncVisitToGoogle(v.id, tenantId).catch(console.error))
-    );
-    await new Promise((r) => setTimeout(r, 150));
+  for (const v of visits) {
+    await syncVisitToGoogle(v.id, tenantId).catch(console.error);
+    await new Promise((r) => setTimeout(r, 200)); // 200ms delay to avoid rate limits
   }
 
   return { count: visits.length };
