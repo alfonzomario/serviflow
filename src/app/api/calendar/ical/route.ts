@@ -28,6 +28,32 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Tenant no encontrado', { status: 404 });
     }
 
+    const tenantSettings = await db.tenantSettings.findUnique({
+      where: { tenantId: tenantRow.id },
+      select: { googleCalendarEnabled: true },
+    });
+
+    // If direct OAuth sync is enabled, return empty iCal feed to auto-clear duplicate old gray events in Google Calendar
+    if (tenantSettings?.googleCalendarEnabled) {
+      const emptyIcs = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//ServiFlow//Agenda Sync//ES',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        `X-WR-CALNAME:ServiFlow - ${tenantRow.name}`,
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      return new NextResponse(emptyIcs, {
+        headers: {
+          'Content-Type': 'text/calendar; charset=utf-8',
+          'Content-Disposition': 'inline; filename="serviflow-calendar.ics"',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
+    }
+
     const now = new Date();
     const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
 

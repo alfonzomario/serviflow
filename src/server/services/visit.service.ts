@@ -36,8 +36,9 @@ export const onVisitStatusChange = async (
 
   if (!visit) return;
 
-  if (newStatus === 'CONFIRMED') {
-    // Sync to Google Calendar
+  if (newStatus === 'CANCELLED' && visit.calendarEventId) {
+    deleteCalendarEvent(visit.calendarEventId, tenantId).catch(console.error);
+  } else if (newStatus !== 'CANCELLED') {
     syncVisitToGoogle(visitId, tenantId).catch(console.error);
   }
 
