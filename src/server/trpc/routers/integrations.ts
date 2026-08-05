@@ -30,7 +30,11 @@ export const integrationsRouter = router({
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
     // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
-    nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    // We use setTimeout to completely detach execution from the TRPC request context
+    // This prevents Next.js / Proxy from waiting and throwing a 504 Gateway Timeout.
+    setTimeout(() => {
+      nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    }, 100);
 
     const count = await ctx.db.visit.count({
       where: {
@@ -45,7 +49,10 @@ export const integrationsRouter = router({
 
   purgeAndCleanGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
     // Purge old test events from primary calendar and re-sync dedicated ServiFlow calendar
-    nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    // Detached execution to avoid proxy timeouts
+    setTimeout(() => {
+      nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    }, 100);
     return { success: true };
   }),
 
