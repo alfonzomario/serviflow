@@ -317,28 +317,35 @@ export async function deleteCalendarEvent(eventId: string, tenantId: string) {
 // Full reset & resync
 // ---------------------------------------------------------------------------
 
+const activeSyncs = new Set<string>();
+
 /** Nukes the ServiFlow sub-calendar entirely and recreates it fresh, then re-syncs all visits */
 export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { count: 0 };
 
-  // LOCK PREVENTIVO: Si ya está sincronizando, abortamos para evitar duplicados por clicks múltiples
-  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
-  if (settings?.googleCalendarId === 'SYNCING') {
+  // LOCK PREVENTIVO EN MEMORIA: Abortamos si hay un proceso corriendo en este servidor
+  if (activeSyncs.has(tenantId)) {
     console.log('Sincronización ya en curso. Abortando duplicado.');
     return { count: 0 };
   }
-
-  // Establecemos el LOCK
-  await db.tenantSettings.update({
-    where: { tenantId },
-    data: { googleCalendarId: 'SYNCING' },
-  });
-
-  const oldCalendarId = settings?.googleCalendarId;
-
-  // 1. DELETE ALL existing ServiFlow sub-calendars to clean up duplicates
+  
+  activeSyncs.add(tenantId);
   try {
+    const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+    let oldCalendarId = settings?.googleCalendarId;
+
+    // FIX FOR STUCK DB LOCK: Si quedó trabado de una corrida anterior, lo limpiamos
+    if (oldCalendarId === 'SYNCING') {
+      oldCalendarId = null;
+      await db.tenantSettings.update({
+        where: { tenantId },
+        data: { googleCalendarId: null }
+      });
+    }
+
+    // 1. DELETE ALL existing ServiFlow sub-calendars to clean up duplicates
+    try {
     const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -434,13 +441,17 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
     await new Promise((r) => setTimeout(r, 150)); // Fast delay to avoid rate limit
   }
 
-  // 6. Save the final calendar ID to release the lock
-  await db.tenantSettings.update({
-    where: { tenantId },
-    data: { googleCalendarId: newCalendarId },
-  });
+    // 6. Save the final calendar ID
+    await db.tenantSettings.update({
+      where: { tenantId },
+      data: { googleCalendarId: newCalendarId },
+    });
 
-  return { count: visits.length };
+    return { count: visits.length };
+  } finally {
+    // RELEASE MEMORY LOCK SIEMPRE
+    activeSyncs.delete(tenantId);
+  }
 }
 
 /** NUCLEAR OPTION: Purges ALL ServiFlow events from primary calendar + deletes & recreates ServiFlow sub-calendar */
