@@ -30,7 +30,7 @@ export const integrationsRouter = router({
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
     // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
-    nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    await nuclearResetGoogleCalendar(ctx.tenantId);
 
     const count = await ctx.db.visit.count({
       where: {
@@ -45,7 +45,7 @@ export const integrationsRouter = router({
 
   purgeAndCleanGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
     // Purge old test events from primary calendar and re-sync dedicated ServiFlow calendar
-    nuclearResetGoogleCalendar(ctx.tenantId).catch(console.error);
+    await nuclearResetGoogleCalendar(ctx.tenantId);
     return { success: true };
   }),
 

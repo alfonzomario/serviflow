@@ -166,16 +166,20 @@ async function deleteEvents(
     await Promise.all(
       batch.map(async (id) => {
         try {
-          await fetch(
+          const res = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${id}`,
             {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${accessToken}` },
             }
           );
-          count++;
+          if (!res.ok) {
+            console.error(`Failed to delete event ${id}: ${res.status} ${await res.text()}`);
+          } else {
+            count++;
+          }
         } catch (e) {
-          console.error(`Failed to delete event ${id}:`, e);
+          console.error(`Network error deleting event ${id}:`, e);
         }
       })
     );
