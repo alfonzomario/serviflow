@@ -83,14 +83,21 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     return;
   }
 
-  const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const startTime = new Date(visit.scheduledAt);
+  const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const endTime = new Date(startTime.getTime() + durationMs);
+
+  // Format exact local ISO string with UTC-3 offset (Buenos Aires) so Google Calendar displays exact start & end times
+  const formatRFC3339 = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
 
   const eventPayload = {
     summary: `${visit.client.name} — ${visit.serviceType || 'Servicio'}`,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
+    colorId: '9', // Official Google Calendar Electric Blue / Peacock color
     start: {
       dateTime: startTime.toISOString(),
       timeZone: 'America/Argentina/Buenos_Aires',
