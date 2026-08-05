@@ -213,17 +213,13 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
 
   const title = `SF - ${visit.client.name}`;
 
-  // Fix timezone shift: DB stores local time as UTC, so we strip 'Z' and force Argentina timezone
-  const startStr = startTime.toISOString().replace('Z', '');
-  const endStr = endTime.toISOString().replace('Z', '');
-
   const eventPayload = {
     summary: title,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
     colorId: '9', // Electric Blue (Peacock)
-    start: { dateTime: startStr, timeZone: 'America/Argentina/Buenos_Aires' },
-    end: { dateTime: endStr, timeZone: 'America/Argentina/Buenos_Aires' },
+    start: { dateTime: startTime.toISOString() },
+    end: { dateTime: endTime.toISOString() },
   };
 
   try {
@@ -329,19 +325,26 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
   const oldCalendarId = settings?.googleCalendarId;
 
-  // 1. DELETE the entire ServiFlow sub-calendar (much faster than deleting events one-by-one)
-  if (oldCalendarId && oldCalendarId !== 'primary') {
-    try {
-      await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCalendarId)}`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-    } catch (e) {
-      console.error('Error deleting old ServiFlow calendar:', e);
+  // 1. DELETE ALL existing ServiFlow sub-calendars to clean up duplicates
+  try {
+    const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (calListRes.ok) {
+      const data = await calListRes.json();
+      const calendars = data.items || [];
+      const serviFlowCals = calendars.filter((c: any) => c.summary === 'ServiFlow');
+      
+      for (const cal of serviFlowCals) {
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}`,
+          { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } }
+        ).catch(console.error);
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
+  } catch (e) {
+    console.error('Error fetching/deleting old ServiFlow calendars:', e);
   }
 
   // 2. Clear the saved calendarId so getOrCreate will make a new one
