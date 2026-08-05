@@ -29,6 +29,16 @@ export const integrationsRouter = router({
   }),
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
+    // Reset calendarEventId so old gray iCal events are cleanly replaced with fresh Electric Blue events
+    await ctx.db.visit.updateMany({
+      where: {
+        tenantId: ctx.tenantId,
+        status: { not: 'CANCELLED' },
+        scheduledAt: { not: null },
+      },
+      data: { calendarEventId: null },
+    });
+
     const visits = await ctx.db.visit.findMany({
       where: {
         tenantId: ctx.tenantId,

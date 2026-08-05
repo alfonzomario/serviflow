@@ -27,7 +27,6 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
   }
 
   if (!clientId || !clientSecret) {
-    // If no client credentials configured yet, fallback to saved access token
     return settings.googleAccessToken || null;
   }
 
@@ -87,12 +86,6 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
   const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const endTime = new Date(startTime.getTime() + durationMs);
 
-  // Format exact local ISO string with UTC-3 offset (Buenos Aires) so Google Calendar displays exact start & end times
-  const formatRFC3339 = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  };
-
   const title = visit.serviceType && visit.serviceType !== 'Servicio'
     ? `SF - ${visit.client.name} (${visit.serviceType})`
     : `SF - ${visit.client.name}`;
@@ -104,23 +97,20 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     colorId: '9', // Official Google Calendar Electric Blue / Peacock color
     start: {
       dateTime: startTime.toISOString(),
-      timeZone: 'America/Argentina/Buenos_Aires',
     },
     end: {
       dateTime: endTime.toISOString(),
-      timeZone: 'America/Argentina/Buenos_Aires',
     },
   };
 
   try {
-    const isUpdate = Boolean(visit.calendarEventId);
-    const url = isUpdate
+    let isUpdate = Boolean(visit.calendarEventId);
+    let url = isUpdate
       ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${visit.calendarEventId}`
       : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    let method = isUpdate ? 'PUT' : 'POST';
 
-    const method = isUpdate ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -129,11 +119,26 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
       body: JSON.stringify(eventPayload),
     });
 
+    // If PUT failed (e.g. event ID was not found or was deleted in Google Calendar), fallback to POST
+    if (isUpdate && !response.ok && (response.status === 404 || response.status === 400 || response.status === 410)) {
+      console.warn(`Calendar event ${visit.calendarEventId} not found or rejected PUT, creating fresh event via POST...`);
+      url = `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+      method = 'POST';
+      response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventPayload),
+      });
+    }
+
     if (!response.ok) {
       console.error(`Failed to ${method} visit to Google Calendar:`, await response.text());
     } else {
       const data = await response.json();
-      if (data.id && !visit.calendarEventId) {
+      if (data.id && data.id !== visit.calendarEventId) {
         await db.visit.update({
           where: { id: visit.id },
           data: { calendarEventId: data.id },
