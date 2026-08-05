@@ -48,10 +48,13 @@ export const integrationsRouter = router({
       select: { id: true },
     });
 
-    // Fire synchronization in parallel in background so UI returns instantly
-    Promise.all(
-      visits.map((v) => syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error))
-    ).catch(console.error);
+    // Process visits in background with 150ms delay between calls to comply with Google API rate limits (5 req/sec)
+    (async () => {
+      for (const v of visits) {
+        await syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    })().catch(console.error);
 
     return { count: visits.length };
   }),

@@ -134,6 +134,19 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
       });
     }
 
+    // If rate limited by Google API (429 or 403), retry once after a short delay
+    if (!response.ok && (response.status === 429 || response.status === 403)) {
+      await new Promise((r) => setTimeout(r, 500));
+      response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventPayload),
+      });
+    }
+
     if (!response.ok) {
       console.error(`Failed to ${method} visit to Google Calendar:`, await response.text());
     } else {
