@@ -185,3 +185,42 @@ export async function deleteCalendarEvent(eventId: string, tenantId: string) {
     console.error('Error deleting Google Calendar event:', error);
   }
 }
+
+/** Cleans old legacy gray events (titled "— Servicio") directly from Google Calendar primary calendar */
+export async function cleanLegacyGoogleEvents(tenantId: string) {
+  const accessToken = await getValidAccessToken(tenantId);
+  if (!accessToken) return 0;
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?q=Servicio&maxResults=250`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    if (!res.ok) return 0;
+    const data = await res.json();
+    const items = data.items || [];
+
+    let deletedCount = 0;
+    for (const item of items) {
+      if (item.id && item.summary && (item.summary.includes('— Servicio') || item.summary.includes(' - Servicio'))) {
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        ).catch(console.error);
+        deletedCount++;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+
+    return deletedCount;
+  } catch (err) {
+    console.error('Error cleaning legacy Google events:', err);
+    return 0;
+  }
+}

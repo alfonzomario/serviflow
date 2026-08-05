@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { router, ownerProcedure } from '../trpc';
 import { encrypt, decrypt, encryptIfPresent, decryptIfPresent } from '../../lib/encryption';
-import { syncVisitToGoogle } from '../../services/google-calendar.service';
+import { syncVisitToGoogle, cleanLegacyGoogleEvents } from '../../services/google-calendar.service';
 import crypto from 'crypto';
 
 export const integrationsRouter = router({
@@ -50,6 +50,9 @@ export const integrationsRouter = router({
 
     // Process visits in background with 150ms delay between calls to comply with Google API rate limits (5 req/sec)
     (async () => {
+      // First, automatically delete old gray legacy events (titled "— Servicio") from primary Google Calendar
+      await cleanLegacyGoogleEvents(ctx.tenantId).catch(console.error);
+
       for (const v of visits) {
         await syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error);
         await new Promise((r) => setTimeout(r, 150));
