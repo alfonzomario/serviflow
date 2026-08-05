@@ -56,6 +56,28 @@ export const integrationsRouter = router({
     return { success: true };
   }),
 
+  disconnectGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
+    // 1. Limpiar todos los calendarEventId de las visitas
+    await ctx.db.visit.updateMany({
+      where: { tenantId: ctx.tenantId },
+      data: { calendarEventId: null },
+    });
+
+    // 2. Limpiar todos los tokens y credenciales
+    await ctx.db.tenantSettings.update({
+      where: { tenantId: ctx.tenantId },
+      data: {
+        googleAccessToken: null,
+        googleRefreshToken: null,
+        googleTokenExpiresAt: null,
+        googleCalendarId: null,
+        googleCalendarEnabled: false,
+      },
+    });
+
+    return { success: true };
+  }),
+
   updateGoogleCredentials: ownerProcedure
     .input(
       z.object({

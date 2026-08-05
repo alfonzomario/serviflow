@@ -218,11 +218,21 @@ export default function AgendaPage() {
 
   const resetGoogleCalendar = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
     onSuccess: () => {
-      toast.success("¡Sincronización total iniciada! Tu calendario de Google se reiniciará en unos segundos.");
+      toast.success("Limpieza iniciada en segundo plano. Los eventos se re-sincronizarán en los próximos minutos.");
     },
-    onError: (err) => {
-      toast.error(`Error al reiniciar: ${err.message}`);
+    onError: (error) => {
+      toast.error(`Error al reiniciar: ${error.message}`);
+    }
+  });
+
+  const disconnectGoogleCalendar = trpc.integrations.disconnectGoogleCalendar.useMutation({
+    onSuccess: () => {
+      toast.success("Desconexión exitosa. El calendario ha sido olvidado localmente.");
+      googleStatus.refetch();
     },
+    onError: (error) => {
+      toast.error(`Error al desconectar: ${error.message}`);
+    }
   });
 
   // Check URL query parameters for OAuth redirect status
@@ -271,6 +281,20 @@ export default function AgendaPage() {
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${resetGoogleCalendar.isPending ? "animate-spin" : ""}`} />
                 {resetGoogleCalendar.isPending ? "Procesando..." : "Resetear Calendar"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold gap-1.5 border-red-500/30 text-red-500 hover:bg-red-500/10 shadow-xs"
+                disabled={disconnectGoogleCalendar.isPending}
+                onClick={() => {
+                  if (window.confirm('¿Seguro que querés desconectar Google Calendar? Esto borrará la conexión de ServiFlow pero los eventos en Google quedarán intactos (deberás borrarlos a mano).')) {
+                    disconnectGoogleCalendar.mutate();
+                  }
+                }}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${disconnectGoogleCalendar.isPending ? "animate-spin" : "hidden"}`} />
+                {disconnectGoogleCalendar.isPending ? "Desconectando..." : "Desconectar"}
               </Button>
             </div>
           ) : (
