@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventDropArg, EventContentArg } from '@fullcalendar/core';
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
-import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle, RefreshCw } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/lib/trpc';
@@ -225,6 +225,15 @@ export default function AgendaPage() {
     },
   });
 
+  const purgeGoogleCalendar = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
+    onSuccess: () => {
+      toast.success("¡Iniciando limpieza profunda en tu Google Calendar en segundo plano!");
+    },
+    onError: (err) => {
+      toast.error(`Error al limpiar: ${err.message}`);
+    },
+  });
+
   // Check URL query parameters for OAuth redirect status
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -267,6 +276,16 @@ export default function AgendaPage() {
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${syncAllVisits.isPending ? "animate-spin" : ""}`} />
                 {syncAllVisits.isPending ? "Sincronizando..." : "Sincronizar Visitas"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold gap-1.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 shadow-xs"
+                disabled={purgeGoogleCalendar.isPending}
+                onClick={() => purgeGoogleCalendar.mutate()}
+              >
+                <Trash2 className={`h-3.5 w-3.5 text-amber-500 ${purgeGoogleCalendar.isPending ? "animate-spin" : ""}`} />
+                {purgeGoogleCalendar.isPending ? "Limpiando..." : "Limpiar Eventos Viejos"}
               </Button>
             </div>
           ) : (

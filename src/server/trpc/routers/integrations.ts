@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { router, ownerProcedure } from '../trpc';
 import { encrypt, decrypt, encryptIfPresent, decryptIfPresent } from '../../lib/encryption';
-import { syncVisitToGoogle, cleanAndResyncAllServiFlowEvents } from '../../services/google-calendar.service';
+import { syncVisitToGoogle, cleanAndResyncAllServiFlowEvents, purgePrimaryCalendarLegacyEvents } from '../../services/google-calendar.service';
 import crypto from 'crypto';
 
 export const integrationsRouter = router({
@@ -41,6 +41,12 @@ export const integrationsRouter = router({
     });
 
     return { count };
+  }),
+
+  purgeAndCleanGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
+    // Purge old test events from primary calendar and re-sync dedicated ServiFlow calendar
+    purgePrimaryCalendarLegacyEvents(ctx.tenantId).catch(console.error);
+    return { success: true };
   }),
 
   updateGoogleCredentials: ownerProcedure

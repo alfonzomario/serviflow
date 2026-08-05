@@ -278,3 +278,55 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
 
   return { count: visits.length };
 }
+
+/** Purges all old test/legacy events from the user's PRIMARY Google Calendar (Javier Noriega) */
+export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
+  const accessToken = await getValidAccessToken(tenantId);
+  if (!accessToken) return { deletedCount: 0 };
+
+  let deletedCount = 0;
+
+  try {
+    // 1. Fetch events from primary calendar
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=250`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+
+      for (const item of items) {
+        if (!item.id || !item.summary) continue;
+        const summary = item.summary;
+        // Match events starting with SF - or containing — Servicio or - Servicio
+        if (
+          summary.startsWith('SF -') ||
+          summary.startsWith('SF-') ||
+          summary.includes('— Servicio') ||
+          summary.includes(' - Servicio')
+        ) {
+          await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
+          ).catch(console.error);
+          deletedCount++;
+          await new Promise((r) => setTimeout(r, 80));
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error purging primary calendar legacy events:', err);
+  }
+
+  // 2. Also wipe and cleanly re-sync the dedicated ServiFlow calendar
+  await cleanAndResyncAllServiFlowEvents(tenantId);
+
+  return { deletedCount };
+}
