@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/db';
 import { decryptIfPresent } from '@/server/lib/encryption';
+import { syncVisitToGoogle } from '@/server/services/google-calendar.service';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -68,6 +69,20 @@ export async function GET(req: Request) {
         googleCalendarEnabled: true,
       },
     });
+
+    // Auto-sync all current active visits in background upon successful connection
+    db.visit.findMany({
+      where: {
+        tenantId,
+        status: { not: 'CANCELLED' },
+        scheduledAt: { not: null },
+      },
+      select: { id: true },
+    }).then((visits) => {
+      for (const v of visits) {
+        syncVisitToGoogle(v.id, tenantId).catch(console.error);
+      }
+    }).catch(console.error);
 
     return NextResponse.redirect(new URL('/agenda?google_connected=true', origin));
   } catch (err) {

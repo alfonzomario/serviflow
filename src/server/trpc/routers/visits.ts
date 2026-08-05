@@ -8,6 +8,7 @@ import {
   getPendingVisits,
   getApplicationGapWarning,
 } from '../../services/visit.service';
+import { syncVisitToGoogle } from '../../services/google-calendar.service';
 import { recordAudit } from '../../services/audit.service';
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
@@ -325,10 +326,13 @@ export const visitsRouter = router({
         }
       }
 
-      return ctx.db.visit.update({
+      const updated = await ctx.db.visit.update({
         where: { id, tenantId: ctx.tenantId },
         data: updateData as Prisma.VisitUpdateInput,
       });
+
+      syncVisitToGoogle(updated.id, ctx.tenantId).catch(console.error);
+      return updated;
     }),
 
   /** Drag-and-drop rescheduling from the calendar. */
@@ -371,6 +375,7 @@ export const visitsRouter = router({
         changes: { scheduledAt: { old: visit.scheduledAt, new: input.scheduledAt } },
       });
 
+      syncVisitToGoogle(updated.id, ctx.tenantId).catch(console.error);
       return updated;
     }),
 

@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventDropArg, EventContentArg } from '@fullcalendar/core';
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
-import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/lib/trpc';
@@ -216,12 +216,22 @@ export default function AgendaPage() {
 
   const googleStatus = trpc.integrations.getGoogleCalendarStatus.useQuery();
 
+  const syncAllVisits = trpc.integrations.syncAllVisitsToGoogle.useMutation({
+    onSuccess: (res) => {
+      toast.success(`¡Se enviaron ${res.count} visitas a tu Google Calendar!`);
+    },
+    onError: (err) => {
+      toast.error(`Error al sincronizar: ${err.message}`);
+    },
+  });
+
   // Check URL query parameters for OAuth redirect status
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('google_connected') === 'true') {
-      toast.success('¡Google Calendar conectado exitosamente!');
+      toast.success('¡Google Calendar conectado exitosamente! Sincronizando tus visitas...');
+      syncAllVisits.mutate();
       window.history.replaceState({}, '', window.location.pathname);
     } else if (urlParams.get('error') === 'google_credentials_missing') {
       toast.error('Google Client ID no configurado. Para activar la conexión directa con Google, configurá las credenciales en Ajustes -> Integraciones o en el archivo .env');
@@ -243,11 +253,21 @@ export default function AgendaPage() {
         </div>
         <div className="flex items-center gap-2">
           {googleStatus.data?.connected ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-xs">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                 Google Calendar Conectado
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 shadow-xs"
+                disabled={syncAllVisits.isPending}
+                onClick={() => syncAllVisits.mutate()}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncAllVisits.isPending ? "animate-spin" : ""}`} />
+                {syncAllVisits.isPending ? "Sincronizando..." : "Sincronizar Visitas"}
+              </Button>
             </div>
           ) : (
             <Button

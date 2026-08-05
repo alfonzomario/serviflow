@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, ownerProcedure } from '../trpc';
 import { encrypt, decrypt, encryptIfPresent, decryptIfPresent } from '../../lib/encryption';
+import { syncVisitToGoogle } from '../../services/google-calendar.service';
 import crypto from 'crypto';
 
 export const integrationsRouter = router({
@@ -25,6 +26,25 @@ export const integrationsRouter = router({
       icalFeedToken: settings?.icalFeedToken || null,
       icalFeedUrl: settings?.icalFeedToken ? `/api/ical/${settings.icalFeedToken}` : null,
     };
+  }),
+
+  syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
+    const visits = await ctx.db.visit.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        status: { not: 'CANCELLED' },
+        scheduledAt: { not: null },
+      },
+      select: { id: true },
+    });
+
+    let count = 0;
+    for (const v of visits) {
+      await syncVisitToGoogle(v.id, ctx.tenantId).catch(console.error);
+      count++;
+    }
+
+    return { count };
   }),
 
   updateGoogleCredentials: ownerProcedure
