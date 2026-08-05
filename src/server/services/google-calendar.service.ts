@@ -237,7 +237,7 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
 
   // 1. Delete ALL existing events in the ServiFlow sub-calendar to guarantee 0 duplicates
   try {
-    const listRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?maxResults=250`, {
+    const listRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?maxResults=2500`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -250,7 +250,7 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${accessToken}` },
           }).catch(console.error);
-          await new Promise((r) => setTimeout(r, 80));
+          await new Promise((r) => setTimeout(r, 60));
         }
       }
     }
@@ -279,7 +279,7 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   return { count: visits.length };
 }
 
-/** Purges all old test/legacy events from the user's PRIMARY Google Calendar (Javier Noriega) */
+/** Purges all old test/legacy events from the user's PRIMARY Google Calendar (Javier Noriega) across 2026 */
 export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { deletedCount: 0 };
@@ -287,9 +287,19 @@ export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
   let deletedCount = 0;
 
   try {
-    // 1. Fetch events from primary calendar
+    // Get tenant client names to match any legacy test events in primary calendar
+    const clients = await db.client.findMany({
+      where: { tenantId },
+      select: { name: true },
+    });
+
+    const clientNames = clients.map((c) => c.name.toLowerCase().trim()).filter(Boolean);
+
+    // Fetch events from primary calendar between 2026-01-01 and 2026-12-31 with explicit time bounds
+    const timeMin = '2026-01-01T00:00:00Z';
+    const timeMax = '2026-12-31T23:59:59Z';
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=250`,
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=2500`,
       {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
@@ -302,13 +312,13 @@ export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
       for (const item of items) {
         if (!item.id || !item.summary) continue;
         const summary = item.summary;
-        // Match events starting with SF - or containing — Servicio or - Servicio
-        if (
-          summary.startsWith('SF -') ||
-          summary.startsWith('SF-') ||
-          summary.includes('— Servicio') ||
-          summary.includes(' - Servicio')
-        ) {
+        const lowerSummary = summary.toLowerCase();
+
+        const matchesPrefix = summary.startsWith('SF -') || summary.startsWith('SF-');
+        const matchesSuffix = summary.includes('— Servicio') || summary.includes(' - Servicio');
+        const matchesClientName = clientNames.some((name) => lowerSummary.includes(name));
+
+        if (matchesPrefix || matchesSuffix || matchesClientName) {
           await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`,
             {
@@ -317,7 +327,7 @@ export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
             }
           ).catch(console.error);
           deletedCount++;
-          await new Promise((r) => setTimeout(r, 80));
+          await new Promise((r) => setTimeout(r, 60));
         }
       }
     }
@@ -325,7 +335,7 @@ export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
     console.error('Error purging primary calendar legacy events:', err);
   }
 
-  // 2. Also wipe and cleanly re-sync the dedicated ServiFlow calendar
+  // Also wipe and cleanly re-sync the dedicated ServiFlow sub-calendar
   await cleanAndResyncAllServiFlowEvents(tenantId);
 
   return { deletedCount };
