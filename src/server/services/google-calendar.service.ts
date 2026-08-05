@@ -11,7 +11,6 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
     return null;
   }
 
-  // If access token is missing or near expiration, refresh it
   const isExpired = !settings.googleAccessToken ||
     (settings.googleTokenExpiresAt && new Date(settings.googleTokenExpiresAt).getTime() - Date.now() < 300000);
 
@@ -19,7 +18,6 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
     return settings.googleAccessToken;
   }
 
-  // Refresh token call
   const clientId = settings.googleClientId || process.env.GOOGLE_CLIENT_ID || "";
   let clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
   if (!clientSecret && settings.googleClientSecretEncrypted) {
@@ -66,7 +64,11 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
   }
 }
 
-/** Finds or creates the dedicated 'ServiFlow' sub-calendar in the user's Google account */
+// ---------------------------------------------------------------------------
+// Calendar Management
+// ---------------------------------------------------------------------------
+
+/** Finds or creates the dedicated 'ServiFlow' sub-calendar */
 export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId: string): Promise<string> {
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
   if (settings?.googleCalendarId) {
@@ -74,7 +76,6 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
   }
 
   try {
-    // 1. Search existing calendars
     const listRes = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -91,7 +92,6 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
       }
     }
 
-    // 2. Create new 'ServiFlow' sub-calendar if not found
     const createRes = await fetch("https://www.googleapis.com/calendar/v3/calendars", {
       method: "POST",
       headers: {
@@ -118,21 +118,82 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
   return "primary";
 }
 
-/** Syncs a visit to the dedicated ServiFlow Google Calendar */
+// ---------------------------------------------------------------------------
+// Paginated event helpers
+// ---------------------------------------------------------------------------
+
+/** Fetches ALL events from a calendar with full pagination (Google limits to 250/page) */
+async function fetchAllEvents(
+  accessToken: string,
+  calendarId: string,
+  extraParams: string = ''
+): Promise<Array<{ id: string; summary?: string; start?: any }>> {
+  const allItems: Array<{ id: string; summary?: string; start?: any }> = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ maxResults: '250' });
+    if (pageToken) params.set('pageToken', pageToken);
+    if (extraParams) {
+      const extra = new URLSearchParams(extraParams);
+      extra.forEach((v, k) => params.set(k, v));
+    }
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    if (!res.ok) break;
+
+    const data = await res.json();
+    allItems.push(...(data.items || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allItems;
+}
+
+/** Deletes a list of events from a calendar with rate-limiting */
+async function deleteEvents(
+  accessToken: string,
+  calendarId: string,
+  eventIds: string[]
+): Promise<number> {
+  let count = 0;
+  for (const id of eventIds) {
+    try {
+      await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${id}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      count++;
+    } catch (e) {
+      console.error(`Failed to delete event ${id}:`, e);
+    }
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
+// Single visit sync
+// ---------------------------------------------------------------------------
+
+/** Syncs a single visit to the dedicated ServiFlow Google Calendar */
 export async function syncVisitToGoogle(visitId: string, tenantId: string) {
   const visit = await db.visit.findFirst({
     where: { id: visitId, tenantId },
     include: { client: true, job: true },
   });
 
-  if (!visit || !visit.scheduledAt) {
-    return;
-  }
+  if (!visit || !visit.scheduledAt) return;
 
   const accessToken = await getValidAccessToken(tenantId);
-  if (!accessToken) {
-    return;
-  }
+  if (!accessToken) return;
 
   const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
 
@@ -140,63 +201,82 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
   const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const endTime = new Date(startTime.getTime() + durationMs);
 
-  const title = visit.serviceType && visit.serviceType !== 'Servicio'
-    ? `SF - ${visit.client.name} (${visit.serviceType})`
-    : `SF - ${visit.client.name}`;
+  const title = `SF - ${visit.serviceType || 'Servicio'} - ${visit.client.name}`;
 
   const eventPayload = {
     summary: title,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
-    colorId: '9', // Electric Blue / Peacock color
-    start: {
-      dateTime: startTime.toISOString(),
-    },
-    end: {
-      dateTime: endTime.toISOString(),
-    },
+    colorId: '9', // Electric Blue (Peacock)
+    start: { dateTime: startTime.toISOString() },
+    end: { dateTime: endTime.toISOString() },
   };
 
   try {
-    let isUpdate = Boolean(visit.calendarEventId);
-    let url = isUpdate
-      ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${visit.calendarEventId}`
-      : `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
-    let method = isUpdate ? 'PUT' : 'POST';
+    // --- Try UPDATE if we have a calendarEventId ---
+    if (visit.calendarEventId) {
+      const putRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${visit.calendarEventId}`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventPayload),
+        }
+      );
 
-    let response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(eventPayload),
-    });
+      if (putRes.ok) return; // Updated successfully, done
 
-    // If PUT failed, fallback to POST
-    if (isUpdate && !response.ok && (response.status === 404 || response.status === 400 || response.status === 410)) {
-      url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
-      method = 'POST';
-      response = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(eventPayload),
-      });
+      // If 404/410 the old event was deleted from Calendar — fall through to create
+      if (putRes.status !== 404 && putRes.status !== 410) {
+        console.error('PUT failed:', await putRes.text());
+      }
     }
 
-    if (!response.ok) {
-      console.error(`Failed to ${method} visit to Google Calendar:`, await response.text());
-    } else {
-      const data = await response.json();
-      if (data.id && data.id !== visit.calendarEventId) {
+    // --- DEDUPLICATION: search for existing event with same title & start time ---
+    const existingEvents = await fetchAllEvents(accessToken, calendarId);
+    const duplicate = existingEvents.find(
+      (e) => e.summary === title && e.start?.dateTime === startTime.toISOString()
+    );
+
+    if (duplicate) {
+      // Update the existing duplicate instead of creating a new one
+      const putRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${duplicate.id}`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventPayload),
+        }
+      );
+      if (putRes.ok) {
+        await db.visit.update({
+          where: { id: visit.id },
+          data: { calendarEventId: duplicate.id },
+        });
+        return;
+      }
+    }
+
+    // --- CREATE new event ---
+    const postRes = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventPayload),
+      }
+    );
+
+    if (postRes.ok) {
+      const data = await postRes.json();
+      if (data.id) {
         await db.visit.update({
           where: { id: visit.id },
           data: { calendarEventId: data.id },
         });
       }
+    } else {
+      console.error('POST event failed:', await postRes.text());
     }
   } catch (error) {
     console.error('Error syncing visit to Google Calendar:', error);
@@ -206,71 +286,75 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
 /** Deletes an event from the dedicated ServiFlow Google Calendar */
 export async function deleteCalendarEvent(eventId: string, tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
-  if (!accessToken) {
-    return;
-  }
+  if (!accessToken) return;
 
   const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
 
   try {
-    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Failed to delete Google Calendar event:', await response.text());
-    }
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
   } catch (error) {
     console.error('Error deleting Google Calendar event:', error);
   }
 }
 
-/** Clears all events inside the dedicated ServiFlow calendar and re-syncs all visits cleanly with ZERO duplicates */
+// ---------------------------------------------------------------------------
+// Full reset & resync
+// ---------------------------------------------------------------------------
+
+/** Nukes the ServiFlow sub-calendar entirely and recreates it fresh, then re-syncs all visits */
 export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { count: 0 };
 
-  const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  const oldCalendarId = settings?.googleCalendarId;
 
-  // 1. Delete ALL existing events in the ServiFlow sub-calendar to guarantee 0 duplicates
-  try {
-    const listRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?maxResults=2500`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (listRes.ok) {
-      const data = await listRes.json();
-      const items = data.items || [];
-      for (const item of items) {
-        if (item.id) {
-          await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${item.id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }).catch(console.error);
-          await new Promise((r) => setTimeout(r, 60));
+  // 1. DELETE the entire ServiFlow sub-calendar (much faster than deleting events one-by-one)
+  if (oldCalendarId && oldCalendarId !== 'primary') {
+    try {
+      await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCalendarId)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
         }
-      }
+      );
+    } catch (e) {
+      console.error('Error deleting old ServiFlow calendar:', e);
     }
-  } catch (err) {
-    console.error('Error clearing events from ServiFlow calendar:', err);
   }
 
-  // 2. Reset calendarEventId in DB
+  // 2. Clear the saved calendarId so getOrCreate will make a new one
+  await db.tenantSettings.update({
+    where: { tenantId },
+    data: { googleCalendarId: null },
+  });
+
+  // 3. Reset ALL calendarEventId references in the DB
   await db.visit.updateMany({
-    where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
+    where: { tenantId },
     data: { calendarEventId: null },
   });
 
-  // 3. Query all active visits
+  // 4. Create the fresh ServiFlow sub-calendar
+  const newCalendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
+  if (!newCalendarId || newCalendarId === 'primary') {
+    console.error('Failed to create new ServiFlow calendar');
+    return { count: 0 };
+  }
+
+  // 5. Re-sync all active visits into the brand new calendar
   const visits = await db.visit.findMany({
     where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
     select: { id: true },
   });
 
-  // 4. Sync each visit into the ServiFlow sub-calendar sequentially with 120ms delay
   for (const v of visits) {
     await syncVisitToGoogle(v.id, tenantId).catch(console.error);
     await new Promise((r) => setTimeout(r, 120));
@@ -279,64 +363,54 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   return { count: visits.length };
 }
 
-/** Purges all old test/legacy events from the user's PRIMARY Google Calendar (Javier Noriega) across 2026 */
-export async function purgePrimaryCalendarLegacyEvents(tenantId: string) {
+/** NUCLEAR OPTION: Purges ALL ServiFlow events from primary calendar + deletes & recreates ServiFlow sub-calendar */
+export async function nuclearResetGoogleCalendar(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
-  if (!accessToken) return { deletedCount: 0 };
+  if (!accessToken) return { primaryDeleted: 0, synced: 0 };
 
-  let deletedCount = 0;
-
+  // ---- PHASE 1: Clean primary calendar ----
+  let primaryDeleted = 0;
   try {
-    // Get tenant client names to match any legacy test events in primary calendar
+    // Load client names for matching legacy events
     const clients = await db.client.findMany({
       where: { tenantId },
       select: { name: true },
     });
-
     const clientNames = clients.map((c) => c.name.toLowerCase().trim()).filter(Boolean);
 
-    // Fetch events from primary calendar between 2026-01-01 and 2026-12-31 with explicit time bounds
-    const timeMin = '2026-01-01T00:00:00Z';
-    const timeMax = '2026-12-31T23:59:59Z';
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=2500`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
+    // Paginated fetch of ALL events from primary calendar in 2026
+    const allPrimaryEvents = await fetchAllEvents(
+      accessToken,
+      'primary',
+      'timeMin=2026-01-01T00:00:00Z&timeMax=2027-01-01T00:00:00Z'
     );
 
-    if (res.ok) {
-      const data = await res.json();
-      const items = data.items || [];
+    // Find ServiFlow-related events by prefix, suffix, or client name
+    const toDelete = allPrimaryEvents.filter((item) => {
+      if (!item.summary) return false;
+      const s = item.summary;
+      const lower = s.toLowerCase();
+      return (
+        s.startsWith('SF -') ||
+        s.startsWith('SF-') ||
+        s.includes('— Servicio') ||
+        s.includes('— Servi') ||
+        s.includes(' - Servicio') ||
+        clientNames.some((name) => lower.includes(name))
+      );
+    });
 
-      for (const item of items) {
-        if (!item.id || !item.summary) continue;
-        const summary = item.summary;
-        const lowerSummary = summary.toLowerCase();
-
-        const matchesPrefix = summary.startsWith('SF -') || summary.startsWith('SF-');
-        const matchesSuffix = summary.includes('— Servicio') || summary.includes(' - Servicio');
-        const matchesClientName = clientNames.some((name) => lowerSummary.includes(name));
-
-        if (matchesPrefix || matchesSuffix || matchesClientName) {
-          await fetch(
-            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`,
-            {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }
-          ).catch(console.error);
-          deletedCount++;
-          await new Promise((r) => setTimeout(r, 60));
-        }
-      }
-    }
+    primaryDeleted = await deleteEvents(
+      accessToken,
+      'primary',
+      toDelete.map((e) => e.id)
+    );
   } catch (err) {
-    console.error('Error purging primary calendar legacy events:', err);
+    console.error('Error purging primary calendar:', err);
   }
 
-  // Also wipe and cleanly re-sync the dedicated ServiFlow sub-calendar
-  await cleanAndResyncAllServiFlowEvents(tenantId);
+  // ---- PHASE 2: Nuke & recreate ServiFlow sub-calendar + resync ----
+  const resyncResult = await cleanAndResyncAllServiFlowEvents(tenantId);
 
-  return { deletedCount };
+  return { primaryDeleted, synced: resyncResult.count };
 }

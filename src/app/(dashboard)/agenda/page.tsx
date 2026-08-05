@@ -216,21 +216,12 @@ export default function AgendaPage() {
 
   const googleStatus = trpc.integrations.getGoogleCalendarStatus.useQuery();
 
-  const syncAllVisits = trpc.integrations.syncAllVisitsToGoogle.useMutation({
-    onSuccess: (res) => {
-      toast.success(`¡Se enviaron ${res.count} visitas a tu Google Calendar!`);
-    },
-    onError: (err) => {
-      toast.error(`Error al sincronizar: ${err.message}`);
-    },
-  });
-
-  const purgeGoogleCalendar = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
+  const resetGoogleCalendar = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
     onSuccess: () => {
-      toast.success("¡Iniciando limpieza profunda en tu Google Calendar en segundo plano!");
+      toast.success("¡Sincronización total iniciada! Tu calendario de Google se reiniciará en unos segundos.");
     },
     onError: (err) => {
-      toast.error(`Error al limpiar: ${err.message}`);
+      toast.error(`Error al reiniciar: ${err.message}`);
     },
   });
 
@@ -240,7 +231,7 @@ export default function AgendaPage() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('google_connected') === 'true') {
       toast.success('¡Google Calendar conectado exitosamente! Sincronizando tus visitas...');
-      syncAllVisits.mutate();
+      resetGoogleCalendar.mutate();
       window.history.replaceState({}, '', window.location.pathname);
     } else if (urlParams.get('error') === 'google_credentials_missing') {
       toast.error('Google Client ID no configurado. Para activar la conexión directa con Google, configurá las credenciales en Ajustes -> Integraciones o en el archivo .env');
@@ -270,22 +261,16 @@ export default function AgendaPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs font-bold gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 shadow-xs"
-                disabled={syncAllVisits.isPending}
-                onClick={() => syncAllVisits.mutate()}
+                className="text-xs font-bold gap-1.5 border-orange-500/30 text-orange-500 hover:bg-orange-500/10 shadow-xs"
+                disabled={resetGoogleCalendar.isPending}
+                onClick={() => {
+                  if (window.confirm('¿Estás seguro? Esto eliminará todos los eventos viejos y recreará el calendario ServiFlow desde cero.')) {
+                    resetGoogleCalendar.mutate();
+                  }
+                }}
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${syncAllVisits.isPending ? "animate-spin" : ""}`} />
-                {syncAllVisits.isPending ? "Sincronizando..." : "Sincronizar Visitas"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs font-bold gap-1.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 shadow-xs"
-                disabled={purgeGoogleCalendar.isPending}
-                onClick={() => purgeGoogleCalendar.mutate()}
-              >
-                <Trash2 className={`h-3.5 w-3.5 text-amber-500 ${purgeGoogleCalendar.isPending ? "animate-spin" : ""}`} />
-                {purgeGoogleCalendar.isPending ? "Limpiando..." : "Limpiar Eventos Viejos"}
+                <RefreshCw className={`h-3.5 w-3.5 ${resetGoogleCalendar.isPending ? "animate-spin" : ""}`} />
+                {resetGoogleCalendar.isPending ? "Procesando..." : "Resetear Calendar"}
               </Button>
             </div>
           ) : (

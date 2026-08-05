@@ -8,7 +8,7 @@ import {
   getPendingVisits,
   getApplicationGapWarning,
 } from '../../services/visit.service';
-import { syncVisitToGoogle } from '../../services/google-calendar.service';
+import { syncVisitToGoogle, deleteCalendarEvent } from '../../services/google-calendar.service';
 import { recordAudit } from '../../services/audit.service';
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
@@ -219,7 +219,7 @@ export const visitsRouter = router({
           });
         }
 
-        return ctx.db.visit.create({
+        const visit = await ctx.db.visit.create({
           data: {
             ...visitData,
             serviceType: input.serviceType || null,
@@ -230,12 +230,14 @@ export const visitsRouter = router({
             tenantId: ctx.tenantId,
           },
         });
+        syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
+        return visit;
       }
 
       // Opening a new job: the job and its first application are one action for
       // the user, so they are one transaction here.
       if (newJobApplications) {
-        return ctx.db.$transaction(async (tx) => {
+        const visit = await ctx.db.$transaction(async (tx) => {
           const job = await tx.job.create({
             data: {
               tenantId: ctx.tenantId,
@@ -247,7 +249,7 @@ export const visitsRouter = router({
             },
           });
 
-          const visit = await tx.visit.create({
+          const v = await tx.visit.create({
             data: {
               ...visitData,
               serviceType: input.serviceType || null,
@@ -258,11 +260,13 @@ export const visitsRouter = router({
             },
           });
 
-          return visit;
+          return v;
         });
+        syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
+        return visit;
       }
 
-      return ctx.db.visit.create({
+      const visit = await ctx.db.visit.create({
         data: {
           ...visitData,
           serviceType: input.serviceType || null,
@@ -270,6 +274,8 @@ export const visitsRouter = router({
           tenantId: ctx.tenantId,
         },
       });
+      syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
+      return visit;
     }),
 
   update: permissionProcedure('agenda', 'write')
@@ -442,6 +448,10 @@ export const visitsRouter = router({
         entityType: 'visit',
         entityId: input.id,
       });
+
+      if (deleted.calendarEventId) {
+        deleteCalendarEvent(deleted.calendarEventId, ctx.tenantId).catch(console.error);
+      }
 
       return deleted;
     }),
