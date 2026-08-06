@@ -379,24 +379,36 @@ async function deleteEvents(
 // Single visit sync
 // ---------------------------------------------------------------------------
 
-/** Syncs a single visit to the tenant's dedicated Google Calendar. */
-export async function syncVisitToGoogle(visitId: string, tenantId: string) {
+export type SyncResult = { ok: true; reason?: string } | { ok: false; reason: string };
+
+/**
+ * Syncs a single visit to the tenant's dedicated Google Calendar. Returns
+ * whether it actually happened (or was legitimately skipped, e.g. Google
+ * isn't connected) versus failed — callers that fire this in the background
+ * still get a result to log or surface, instead of the failure only ever
+ * reaching a server console nobody's watching.
+ */
+export async function syncVisitToGoogle(visitId: string, tenantId: string): Promise<SyncResult> {
   // A full reset is in progress for this tenant — it will re-sync every active
   // visit itself once it finishes, so bail out instead of racing it.
-  if (activeSyncs.has(tenantId)) return;
+  if (activeSyncs.has(tenantId)) return { ok: true, reason: "skipped: full reset in progress" };
 
   const visit = await db.visit.findFirst({
     where: { id: visitId, tenantId },
     include: { client: true, job: true },
   });
 
-  if (!visit || !visit.scheduledAt) return;
+  if (!visit || !visit.scheduledAt) return { ok: true, reason: "skipped: no visit or no date" };
 
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
-  if (!settings?.googleCalendarEnabled || !settings?.googleRefreshToken) return;
+  if (!settings?.googleCalendarEnabled || !settings?.googleRefreshToken) {
+    return { ok: true, reason: "skipped: Google Calendar not connected" };
+  }
 
   const accessToken = await getValidAccessToken(tenantId);
-  if (!accessToken) return;
+  if (!accessToken) {
+    return { ok: false, reason: "No se pudo obtener un access token válido de Google (revisá Client ID/Secret o reconectá)." };
+  }
 
   const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
   const colorId = settings.googleCalendarColorId || DEFAULT_GOOGLE_CALENDAR_COLOR_ID;
@@ -433,11 +445,13 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
         }
       );
 
-      if (putRes.ok) return; // Updated successfully, done
+      if (putRes.ok) return { ok: true }; // Updated successfully, done
 
       // If 404/410 the old event was deleted from Calendar — fall through to create
       if (putRes.status !== 404 && putRes.status !== 410) {
-        console.error('PUT failed:', await putRes.text());
+        const body = await putRes.text();
+        console.error('PUT failed:', body);
+        return { ok: false, reason: `Google rechazó la actualización del evento: HTTP ${putRes.status} — ${body.slice(0, 200)}` };
       }
     }
 
@@ -462,7 +476,7 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
           where: { id: visit.id },
           data: { calendarEventId: duplicate.id },
         });
-        return;
+        return { ok: true };
       }
     }
 
@@ -484,11 +498,15 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
           data: { calendarEventId: data.id },
         });
       }
-    } else {
-      console.error('POST event failed:', await postRes.text());
+      return { ok: true };
     }
-  } catch (error) {
+
+    const body = await postRes.text();
+    console.error('POST event failed:', body);
+    return { ok: false, reason: `Google rechazó la creación del evento: HTTP ${postRes.status} — ${body.slice(0, 200)}` };
+  } catch (error: any) {
     console.error('Error syncing visit to Google Calendar:', error);
+    return { ok: false, reason: `Error de red hablando con Google: ${error?.message || error}` };
   }
 }
 

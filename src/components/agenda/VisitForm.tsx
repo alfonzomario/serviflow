@@ -369,8 +369,11 @@ export function VisitForm({
   }
 
   const createVisit = trpc.visits.create.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       toast.success("Visita creada")
+      if (created.googleSyncWarning) {
+        toast.warning(`No se pudo sincronizar con Google Calendar: ${created.googleSyncWarning}`, { duration: 15000 })
+      }
       await invalidate()
       onOpenChange(false)
     },
@@ -434,7 +437,7 @@ export function VisitForm({
       return
     }
 
-    await updateVisit.mutateAsync({
+    const updated = await updateVisit.mutateAsync({
       id: editingId!,
       ...payload,
       newJobApplications: isMultiVisit ? totalApplications : undefined,
@@ -454,6 +457,9 @@ export function VisitForm({
     }
 
     toast.success("Visita actualizada")
+    if (updated.googleSyncWarning) {
+      toast.warning(`No se pudo sincronizar con Google Calendar: ${updated.googleSyncWarning}`, { duration: 15000 })
+    }
     await invalidate()
     onOpenChange(false)
   }

@@ -9,6 +9,12 @@ import {
   getApplicationGapWarning,
 } from '../../services/visit.service';
 import { syncVisitToGoogle, deleteCalendarEvent } from '../../services/google-calendar.service';
+
+/** Awaits the Google sync and reduces it to a warning string the client can toast — null when it worked or there was legitimately nothing to sync. */
+async function syncAndWarn(visitId: string, tenantId: string): Promise<string | null> {
+  const result = await syncVisitToGoogle(visitId, tenantId);
+  return result.ok ? null : result.reason;
+}
 import { recordAudit } from '../../services/audit.service';
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
@@ -230,8 +236,8 @@ export const visitsRouter = router({
             tenantId: ctx.tenantId,
           },
         });
-        syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
-        return visit;
+        const googleSyncWarning = await syncAndWarn(visit.id, ctx.tenantId);
+        return { ...visit, googleSyncWarning };
       }
 
       // Opening a new job: the job and its first application are one action for
@@ -262,8 +268,8 @@ export const visitsRouter = router({
 
           return v;
         });
-        syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
-        return visit;
+        const googleSyncWarning = await syncAndWarn(visit.id, ctx.tenantId);
+        return { ...visit, googleSyncWarning };
       }
 
       const visit = await ctx.db.visit.create({
@@ -274,8 +280,8 @@ export const visitsRouter = router({
           tenantId: ctx.tenantId,
         },
       });
-      syncVisitToGoogle(visit.id, ctx.tenantId).catch(console.error);
-      return visit;
+      const googleSyncWarning = await syncAndWarn(visit.id, ctx.tenantId);
+      return { ...visit, googleSyncWarning };
     }),
 
   update: permissionProcedure('agenda', 'write')
@@ -337,8 +343,8 @@ export const visitsRouter = router({
         data: updateData as Prisma.VisitUpdateInput,
       });
 
-      syncVisitToGoogle(updated.id, ctx.tenantId).catch(console.error);
-      return updated;
+      const googleSyncWarning = await syncAndWarn(updated.id, ctx.tenantId);
+      return { ...updated, googleSyncWarning };
     }),
 
   /** Drag-and-drop rescheduling from the calendar. */
@@ -381,8 +387,8 @@ export const visitsRouter = router({
         changes: { scheduledAt: { old: visit.scheduledAt, new: input.scheduledAt } },
       });
 
-      syncVisitToGoogle(updated.id, ctx.tenantId).catch(console.error);
-      return updated;
+      const googleSyncWarning = await syncAndWarn(updated.id, ctx.tenantId);
+      return { ...updated, googleSyncWarning };
     }),
 
 

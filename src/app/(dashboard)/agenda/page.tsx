@@ -104,8 +104,11 @@ export default function AgendaPage() {
   });
 
   const reschedule = trpc.visits.reschedule.useMutation({
-    onSuccess: () => {
+    onSuccess: (updated) => {
       toast.success('Visita reprogramada');
+      if (updated.googleSyncWarning) {
+        toast.warning(`No se pudo sincronizar con Google Calendar: ${updated.googleSyncWarning}`, { duration: 15000 });
+      }
       utils.visits.list.invalidate();
     },
   });
