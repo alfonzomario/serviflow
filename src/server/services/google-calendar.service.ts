@@ -8,6 +8,11 @@ import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from "
  * racing a wipe with a create/update against the same calendar. */
 const activeSyncs = new Set<string>();
 
+/** Whether a full reset is currently running for this tenant. */
+export function isTenantSyncing(tenantId: string): boolean {
+  return activeSyncs.has(tenantId);
+}
+
 /** Helper to get a valid Google Access Token, refreshing it if expired using the refresh token */
 async function getValidAccessToken(tenantId: string): Promise<string | null> {
   const settings = await db.tenantSettings.findUnique({
@@ -625,14 +630,8 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       data: { calendarEventId: null },
     });
 
-    // 5. Re-sync all active visits using direct POST (slow and steady)
-    const visits = await db.visit.findMany({
-      where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
-      include: { client: true },
-    });
-
-    for (const v of visits) {
-      if (!v.scheduledAt) continue;
+    const postVisitEvent = async (v: { id: string; scheduledAt: Date | null; durationMinutes: number; notes: string | null; client: { name: string; address: string | null; phone: string | null } }) => {
+      if (!v.scheduledAt) return;
 
       const startTime = new Date(v.scheduledAt);
       const durationMs = (v.durationMinutes || 45) * 60 * 1000;
@@ -669,6 +668,29 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       }
 
       await new Promise((r) => setTimeout(r, 150)); // Fast delay to avoid rate limit
+    };
+
+    // 5. Re-sync all active visits using direct POST (slow and steady)
+    const visits = await db.visit.findMany({
+      where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
+      include: { client: true },
+    });
+
+    for (const v of visits) {
+      await postVisitEvent(v);
+    }
+
+    // 5b. Catch-up pass: a visit created/edited WHILE this reset was mid-flight
+    // gets skipped by the individual-sync guard (it defers to this reset), but
+    // step 5's snapshot was taken before it existed, so it's still uncovered.
+    // Anything still missing a calendarEventId at this point was one of those
+    // — sync it now instead of leaving it silently unsynced.
+    const stragglers = await db.visit.findMany({
+      where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null }, calendarEventId: null },
+      include: { client: true },
+    });
+    for (const v of stragglers) {
+      await postVisitEvent(v);
     }
 
     // 6. Save the final calendar ID
@@ -677,7 +699,7 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       data: { googleCalendarId: targetCalendarId },
     });
 
-    return { count: visits.length };
+    return { count: visits.length + stragglers.length };
   } finally {
     // RELEASE MEMORY LOCK SIEMPRE
     activeSyncs.delete(tenantId);

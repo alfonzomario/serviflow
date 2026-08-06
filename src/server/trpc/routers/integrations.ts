@@ -6,7 +6,9 @@ import {
   updateGoogleCalendarAppearance,
   deleteServiFlowCalendar,
   testGoogleCalendarConnection,
+  isTenantSyncing,
 } from '../../services/google-calendar.service';
+import { TRPCError } from '@trpc/server';
 import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from '../../../lib/googleCalendarColors';
 import crypto from 'crypto';
 
@@ -55,6 +57,9 @@ export const integrationsRouter = router({
   }),
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
+    if (isTenantSyncing(ctx.tenantId)) {
+      throw new TRPCError({ code: 'CONFLICT', message: 'Ya hay un reseteo en curso — esperá a que termine antes de lanzar otro.' });
+    }
     // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
     // We use setTimeout to completely detach execution from the TRPC request context
     // This prevents Next.js / Proxy from waiting and throwing a 504 Gateway Timeout.
@@ -74,6 +79,9 @@ export const integrationsRouter = router({
   }),
 
   purgeAndCleanGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
+    if (isTenantSyncing(ctx.tenantId)) {
+      throw new TRPCError({ code: 'CONFLICT', message: 'Ya hay un reseteo en curso — esperá a que termine antes de lanzar otro.' });
+    }
     // Purge old test events from primary calendar and re-sync dedicated ServiFlow calendar
     // Detached execution to avoid proxy timeouts
     setTimeout(() => {
