@@ -6,11 +6,23 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
+function formatLimit(max?: number | null): string {
+  if (max === undefined || max === null) return '—';
+  if (max < 0 || max >= 9999) return 'Ilimitado';
+  return max.toLocaleString();
+}
+
+function formatMaxLabel(max: number | null | undefined, labelText: string): string {
+  if (max === undefined || max === null) return '—';
+  if (max < 0 || max >= 9999) return `${labelText} ilimitados`;
+  return `Hasta ${max.toLocaleString()} ${labelText}`;
+}
+
 export default function FacturacionPage() {
   const utils = trpc.useUtils();
 
   const { data: plans } = trpc.subscription.getPlans.useQuery();
-  const { data: currentData, isLoading } = trpc.subscription.getCurrent.useQuery();
+  const { data: currentData } = trpc.subscription.getCurrent.useQuery();
 
   const changePlan = trpc.subscription.changePlan.useMutation({
     onSuccess: () => {
@@ -48,59 +60,71 @@ export default function FacturacionPage() {
         <div className="px-5 pb-5 grid gap-6 sm:grid-cols-3">
           {/* Clientes */}
           {(() => {
-            const pct = Math.min(100, ((usage?.clientsCount || 0) / (usage?.maxClients || 50)) * 100)
-            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500'
+            const max = usage?.maxClients ?? 50;
+            const isUnlimited = max < 0 || max >= 9999;
+            const pct = isUnlimited ? 0 : Math.min(100, ((usage?.clientsCount || 0) / max) * 100);
+            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500';
             return (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-indigo-400" /> Clientes</span>
-                  <span className="tabular-nums">{usage?.clientsCount || 0} / {usage?.maxClients || 50}</span>
+                  <span className="tabular-nums">{usage?.clientsCount || 0} / {formatLimit(max)}</span>
                 </div>
                 <div className="h-2.5 w-full bg-[hsl(var(--border))] rounded-full overflow-hidden">
                   <div className={`h-full bg-gradient-to-r ${barColor} rounded-full transition-all duration-700 ease-out`}
-                    style={{ width: `${pct}%` }} />
+                    style={{ width: `${isUnlimited ? 5 : pct}%` }} />
                 </div>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">{pct.toFixed(0)}% usado</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">
+                  {isUnlimited ? 'Capacidad ilimitada' : `${pct.toFixed(0)}% usado`}
+                </p>
               </div>
-            )
+            );
           })()}
 
           {/* Visitas */}
           {(() => {
-            const pct = Math.min(100, ((usage?.visitsThisMonth || 0) / (usage?.maxVisitsMonth || 100)) * 100)
-            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500'
+            const max = usage?.maxVisitsMonth ?? 100;
+            const isUnlimited = max < 0 || max >= 9999;
+            const pct = isUnlimited ? 0 : Math.min(100, ((usage?.visitsThisMonth || 0) / max) * 100);
+            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500';
             return (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-indigo-400" /> Visitas del Mes</span>
-                  <span className="tabular-nums">{usage?.visitsThisMonth || 0} / {usage?.maxVisitsMonth || 100}</span>
+                  <span className="tabular-nums">{usage?.visitsThisMonth || 0} / {formatLimit(max)}</span>
                 </div>
                 <div className="h-2.5 w-full bg-[hsl(var(--border))] rounded-full overflow-hidden">
                   <div className={`h-full bg-gradient-to-r ${barColor} rounded-full transition-all duration-700 ease-out`}
-                    style={{ width: `${pct}%` }} />
+                    style={{ width: `${isUnlimited ? 5 : pct}%` }} />
                 </div>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">{pct.toFixed(0)}% usado</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">
+                  {isUnlimited ? 'Capacidad ilimitada' : `${pct.toFixed(0)}% usado`}
+                </p>
               </div>
-            )
+            );
           })()}
 
           {/* Miembros */}
           {(() => {
-            const pct = Math.min(100, ((usage?.usersCount || 0) / (usage?.maxUsers || 2)) * 100)
-            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500'
+            const max = usage?.maxUsers ?? 2;
+            const isUnlimited = max < 0 || max >= 9999;
+            const pct = isUnlimited ? 0 : Math.min(100, ((usage?.usersCount || 0) / max) * 100);
+            const barColor = pct >= 85 ? 'from-red-500 to-rose-400' : pct >= 60 ? 'from-amber-500 to-orange-400' : 'from-indigo-600 to-blue-500';
             return (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="flex items-center gap-1.5"><Building className="h-4 w-4 text-indigo-400" /> Miembros de Equipo</span>
-                  <span className="tabular-nums">{usage?.usersCount || 0} / {usage?.maxUsers || 2}</span>
+                  <span className="tabular-nums">{usage?.usersCount || 0} / {formatLimit(max)}</span>
                 </div>
                 <div className="h-2.5 w-full bg-[hsl(var(--border))] rounded-full overflow-hidden">
                   <div className={`h-full bg-gradient-to-r ${barColor} rounded-full transition-all duration-700 ease-out`}
-                    style={{ width: `${pct}%` }} />
+                    style={{ width: `${isUnlimited ? 5 : pct}%` }} />
                 </div>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">{pct.toFixed(0)}% usado</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] text-right">
+                  {isUnlimited ? 'Capacidad ilimitada' : `${pct.toFixed(0)}% usado`}
+                </p>
               </div>
-            )
+            );
           })()}
         </div>
       </div>
@@ -109,8 +133,12 @@ export default function FacturacionPage() {
       <div className="grid gap-6 md:grid-cols-3">
         {plans?.map((plan) => {
           const isCurrent = currentPlan === plan.name;
-          const isFree = plan.name === 'free';
-          const isPro = plan.name === 'pro';
+          const isFree = plan.name === 'free' || plan.name === 'solo';
+          const isPro = plan.name === 'pro' || plan.name === 'equipo';
+
+          const priceUsd = Number(plan.monthlyPriceUsd || 0) > 0
+            ? Number(plan.monthlyPriceUsd)
+            : isFree ? 0 : isPro ? 29 : 79;
 
           return (
             <div
@@ -135,11 +163,11 @@ export default function FacturacionPage() {
                 <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">
                   {isFree && 'Para emprendedores y pruebas de concepto.'}
                   {isPro && 'Para empresas en crecimiento con equipo.'}
-                  {plan.name === 'business' && 'Para grandes empresas y operativas avanzadas.'}
+                  {!isFree && !isPro && 'Para grandes empresas y operativas avanzadas.'}
                 </p>
                 <div className="pt-4">
                   <span className="text-4xl font-extrabold tracking-tight">
-                    ${Number(plan.monthlyPriceUsd).toLocaleString()}
+                    ${priceUsd.toLocaleString()}
                   </span>
                   <span className="text-xs text-[hsl(var(--muted-foreground))] font-medium ml-1"> USD / mes</span>
                 </div>
@@ -148,15 +176,15 @@ export default function FacturacionPage() {
               <div className="px-5 py-3 space-y-2.5 text-xs">
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>Hasta {plan.maxClients} clientes registrados</span>
+                  <span>{formatMaxLabel(plan.maxClients, 'clientes registrados')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>Hasta {plan.maxVisitsMonth} visitas por mes</span>
+                  <span>{formatMaxLabel(plan.maxVisitsMonth, 'visitas por mes')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>Hasta {plan.maxUsers} miembros de equipo</span>
+                  <span>{formatMaxLabel(plan.maxUsers, 'miembros de equipo')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 shrink-0 text-emerald-400" />

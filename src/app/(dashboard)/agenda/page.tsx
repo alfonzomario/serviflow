@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -81,6 +81,13 @@ export default function AgendaPage() {
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [slotStart, setSlotStart] = useState<Date | null>(null);
   const [slotDuration, setSlotDuration] = useState(45);
+  const [calendarView, setCalendarView] = useState("timeGridWeek");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setCalendarView("timeGridDay");
+    }
+  }, []);
 
   // Day View Modal State
   const [dayModalOpen, setDayModalOpen] = useState(false);
@@ -327,8 +334,9 @@ export default function AgendaPage() {
           }}
         />
         <FullCalendar
+          key={calendarView}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
+          initialView={calendarView}
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',

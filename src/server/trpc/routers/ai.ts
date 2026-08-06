@@ -14,11 +14,15 @@ export const aiRouter = router({
       const isRecurring = item.kind === 'RECURRING_SERVICE';
       const isMissing = item.kind === 'MISSING_APPLICATION';
 
-      let reason = 'Agendamiento periódico recomendado por el sistema.';
+      let reason = 'Agendamiento sugerido según historial del cliente.';
       if (isRecurring) {
-        reason = `Servicio periódico con fecha objetivo ${item.dueAt.toLocaleDateString('es-AR')}.`;
+        if (item.daysOverdue > 0) {
+          reason = `Abono atrasado (venció el ${item.dueAt.toLocaleDateString('es-AR')}). Sugerencia para regularizar.`;
+        } else {
+          reason = `Próximo vencimiento estimado el ${item.dueAt.toLocaleDateString('es-AR')}.`;
+        }
       } else if (isMissing) {
-        reason = `Aplicación ${item.applicationNumber}/${item.totalApplications} pendiente.`;
+        reason = `Aplicación ${item.applicationNumber}/${item.totalApplications} pendiente del tratamiento.`;
       }
 
       return {

@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Plus, Search, Users, Pencil, Trash2, MapPin, Phone } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, Search, Users, Pencil, Trash2, MapPin, Phone, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 
 import { trpc } from "@/lib/trpc"
@@ -35,6 +36,7 @@ const ALL = "__all__"
 const PAGE_SIZE = 20
 
 export default function ClientsPage() {
+  const router = useRouter()
   const [search, setSearch] = React.useState("")
   const [status, setStatus] = React.useState(ALL)
   const [relationshipType, setRelationshipType] = React.useState(ALL)
@@ -166,19 +168,25 @@ export default function ClientsPage() {
               {items.map((client) => (
                 <TableRow
                   key={client.id}
+                  onClick={(e) => {
+                    // Don't navigate if clicking action buttons or interactive links
+                    if ((e.target as HTMLElement).closest('button, a')) return;
+                    router.push(`/clients/${client.id}`);
+                  }}
                   className="border-b border-[hsl(var(--border)/0.5)] last:border-0
-                    hover:bg-[hsl(var(--secondary)/0.4)] transition-colors cursor-pointer"
+                    hover:bg-primary/10 transition-colors cursor-pointer group"
                 >
                   <TableCell>
                     <Link
                       href={`/clients/${client.id}`}
-                      className="font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors duration-150"
+                      className="font-semibold text-foreground group-hover:text-primary transition-colors duration-150 inline-flex items-center gap-1.5"
                     >
-                      {client.name}
+                      <span>{client.name}</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                     </Link>
                     {client.address && (
                       <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3 shrink-0" />
+                        <MapPin className="h-3 w-3 shrink-0 text-sky-400" />
                         <span className="line-clamp-1">{client.address}</span>
                       </div>
                     )}

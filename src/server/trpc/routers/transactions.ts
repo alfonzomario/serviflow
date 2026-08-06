@@ -27,6 +27,7 @@ export const transactionsRouter = router({
 
       const whereClause: Prisma.TransactionWhereInput = {
         ...tenantWhere(ctx.tenantId),
+        deletedAt: null,
         ...(type && { type }),
         ...(typeof isPaid === 'boolean' && { isPaid }),
         ...(clientId && { clientId }),
@@ -42,6 +43,7 @@ export const transactionsRouter = router({
       // Summary query without type or isPaid filters so card metrics stay complete
       const baseWhere: Prisma.TransactionWhereInput = {
         ...tenantWhere(ctx.tenantId),
+        deletedAt: null,
         ...((startDate || endDate) && {
           transactionDate: {
             ...(startDate && { gte: startDate }),

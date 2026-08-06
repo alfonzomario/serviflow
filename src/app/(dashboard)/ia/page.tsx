@@ -57,7 +57,7 @@ export default function IAPage() {
           <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground)/0.7)] mb-1">Clientes Activos</p>
           <p className="text-3xl font-extrabold tracking-tight">{insightsData?.activeClients ?? 0}</p>
           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            Monitoreados continuamente por el algoritmo.
+            Clientes registrados con cadencia de servicio.
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export default function IAPage() {
 
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/0.6)] backdrop-blur-md
           hover:border-[hsl(var(--primary)/0.4)] transition-all p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground)/0.7)] mb-1">Salud Operativa</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground)/0.7)] mb-1">Cumplimiento de Agenda</p>
           <p className={`text-3xl font-extrabold tracking-tight ${
             (insightsData?.healthScore ?? 100) > 80 ? 'text-emerald-400' :
             (insightsData?.healthScore ?? 100) > 50 ? 'text-amber-400' : 'text-red-400'
@@ -80,7 +80,7 @@ export default function IAPage() {
             {insightsData?.healthScore ?? 100}%
           </p>
           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            Nivel de cumplimiento de fechas de cadencia.
+            Proporción de turnos agendados a tiempo.
           </p>
         </div>
       </div>

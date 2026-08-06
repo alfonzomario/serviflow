@@ -133,7 +133,7 @@ export default function FinancePage() {
             Administrá tu caja real, egresos y cuentas por cobrar.
           </p>
         </div>
-        <Button onClick={openNew} className="hidden sm:inline-flex shadow-md">
+        <Button onClick={openNew} className="shadow-md">
           <Plus className="mr-2 h-4 w-4" />
           Nuevo movimiento
         </Button>
@@ -437,17 +437,6 @@ export default function FinancePage() {
       </Card>
 
       {/* Floating Action Button (FAB) for "+ Nuevo movimiento" */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <Button
-          onClick={openNew}
-          size="lg"
-          className="h-12 px-5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold shadow-2xl shadow-indigo-500/40 border border-indigo-400/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
-        >
-          <Plus className="h-5 w-5" />
-          <span className="font-bold">Nuevo movimiento</span>
-        </Button>
-      </div>
-
       <TransactionForm open={formOpen} onOpenChange={setFormOpen} transaction={editing} />
 
       <ConfirmDialog
