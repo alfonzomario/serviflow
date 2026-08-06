@@ -75,11 +75,42 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
 // Calendar Management
 // ---------------------------------------------------------------------------
 
+/**
+ * Checks whether a calendar id still resolves on Google's side. Only 404/410
+ * count as "gone" — anything else (network blip, rate limit, auth hiccup) is
+ * "unknown", because treating those as gone would make a perfectly good
+ * calendar id get forgotten and a duplicate calendar created underneath it.
+ */
+async function calendarStillExists(accessToken: string, calendarId: string): Promise<"ok" | "missing" | "unknown"> {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.ok) return "ok";
+    if (res.status === 404 || res.status === 410) return "missing";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /** Finds or creates the tenant's dedicated Google sub-calendar, named per their settings. */
 export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId: string): Promise<string> {
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
   if (settings?.googleCalendarId) {
-    return settings.googleCalendarId;
+    // The cached id can go stale if the calendar was deleted on Google's side
+    // (by hand, or by an older ghost-calendar cleanup) without ServiFlow
+    // finding out — every sync would then silently 404 forever. Confirm it's
+    // still there before trusting it; if it's gone, forget it and fall
+    // through to find-or-create a fresh one below.
+    const status = await calendarStillExists(accessToken, settings.googleCalendarId);
+    if (status === "ok") return settings.googleCalendarId;
+    if (status === "unknown") return settings.googleCalendarId;
+    await db.tenantSettings.update({
+      where: { tenantId },
+      data: { googleCalendarId: null },
+    });
   }
 
   const calendarName = settings?.googleCalendarName || DEFAULT_GOOGLE_CALENDAR_NAME;
@@ -251,7 +282,10 @@ export async function testGoogleCalendarConnection(
   }
 
   try {
-    const calendarId = settings.googleCalendarId || (await getOrCreateServiFlowCalendar(accessToken, tenantId));
+    // Goes through the same self-healing lookup real syncs use — if the
+    // cached id points at a calendar that's gone, this reports the outcome
+    // of actually fixing it, not the stale failure underneath.
+    const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
     const calRes = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
