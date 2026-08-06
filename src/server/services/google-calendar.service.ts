@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { decryptIfPresent } from "../lib/encryption";
+import { decryptIfPresent, encryptIfPresent } from "../lib/encryption";
 import { toBuenosAiresOffsetString, BUENOS_AIRES_TIMEZONE } from "../lib/timezone";
 import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from "../../lib/googleCalendarColors";
 
@@ -19,15 +19,18 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
     where: { tenantId },
   });
 
-  if (!settings?.googleCalendarEnabled || !settings?.googleRefreshToken) {
+  const refreshToken = decryptIfPresent(settings?.googleRefreshToken) || settings?.googleRefreshToken;
+  const accessToken = decryptIfPresent(settings?.googleAccessToken) || settings?.googleAccessToken;
+
+  if (!settings?.googleCalendarEnabled || !refreshToken) {
     return null;
   }
 
-  const isExpired = !settings.googleAccessToken ||
+  const isExpired = !accessToken ||
     (settings.googleTokenExpiresAt && new Date(settings.googleTokenExpiresAt).getTime() - Date.now() < 300000);
 
-  if (!isExpired && settings.googleAccessToken) {
-    return settings.googleAccessToken;
+  if (!isExpired && accessToken) {
+    return accessToken;
   }
 
   const clientId = settings.googleClientId || process.env.GOOGLE_CLIENT_ID || "";
@@ -37,7 +40,7 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
   }
 
   if (!clientId || !clientSecret) {
-    return settings.googleAccessToken || null;
+    return accessToken || null;
   }
 
   try {
@@ -47,14 +50,14 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: settings.googleRefreshToken,
+        refresh_token: refreshToken,
         grant_type: "refresh_token",
       }),
     });
 
     if (!res.ok) {
       console.error("Failed to refresh Google token:", await res.text());
-      return settings.googleAccessToken || null;
+      return accessToken || null;
     }
 
     const data = await res.json();
@@ -64,7 +67,7 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
     await db.tenantSettings.update({
       where: { tenantId },
       data: {
-        googleAccessToken: newAccessToken,
+        googleAccessToken: encryptIfPresent(newAccessToken),
         googleTokenExpiresAt: expiresAt,
       },
     });
@@ -72,7 +75,7 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
     return newAccessToken;
   } catch (err) {
     console.error("Error refreshing Google Access Token:", err);
-    return settings.googleAccessToken || null;
+    return accessToken || null;
   }
 }
 

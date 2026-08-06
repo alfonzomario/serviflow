@@ -43,11 +43,9 @@ export const onVisitStatusChange = async (
   }
 
   if (newStatus === 'COMPLETED') {
-    // Auto-create INCOME transaction for the visit ONLY if scheduled on or after August 1, 2026
     const transactionDate = visit.scheduledAt ?? new Date();
-    const augustFirst2026 = new Date('2026-08-01T00:00:00.000Z');
 
-    if (transactionDate >= augustFirst2026 && visit.price && Number(visit.price) > 0 && !visit.priceWaived) {
+    if (visit.price && Number(visit.price) > 0 && !visit.priceWaived) {
       await db.transaction.create({
         data: {
           tenantId,
@@ -79,10 +77,6 @@ export const onVisitStatusChange = async (
       },
       data: { deletedAt: new Date() },
     });
-
-    if (visit.calendarEventId) {
-      deleteCalendarEvent(visit.calendarEventId, tenantId).catch(console.error);
-    }
   }
 };
 

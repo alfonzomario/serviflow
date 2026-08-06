@@ -34,7 +34,7 @@ export const integrationsRouter = router({
       calendarName: settings?.googleCalendarName || DEFAULT_GOOGLE_CALENDAR_NAME,
       colorId: settings?.googleCalendarColorId || DEFAULT_GOOGLE_CALENDAR_COLOR_ID,
       icalFeedToken: settings?.icalFeedToken || null,
-      icalFeedUrl: settings?.icalFeedToken ? `/api/ical/${settings.icalFeedToken}` : null,
+      icalFeedUrl: settings?.icalFeedToken ? `/api/calendar/ical?token=${settings.icalFeedToken}` : null,
     };
   }),
 

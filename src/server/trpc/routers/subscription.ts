@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, tenantProcedure } from '../trpc';
+import { router, tenantProcedure, ownerProcedure } from '../trpc';
 
 export const subscriptionRouter = router({
   getPlans: tenantProcedure.query(async ({ ctx }) => {
@@ -84,7 +84,7 @@ export const subscriptionRouter = router({
     };
   }),
 
-  changePlan: tenantProcedure
+  changePlan: ownerProcedure
     .input(
       z.object({
         planName: z.enum(['free', 'pro', 'business']),

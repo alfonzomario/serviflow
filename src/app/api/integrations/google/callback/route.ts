@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/server/auth';
 import { db } from '@/server/db';
-import { decryptIfPresent } from '@/server/lib/encryption';
+import { decryptIfPresent, encryptIfPresent } from '@/server/lib/encryption';
+import { cookies } from 'next/headers';
 
 export async function GET(req: Request) {
+  const session = await auth();
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
-  const tenantId = searchParams.get('state');
+  const stateParam = searchParams.get('state');
   const error = searchParams.get('error');
 
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
@@ -13,10 +16,21 @@ export async function GET(req: Request) {
   const origin = `${protocol}://${host}`;
   const settingsUrl = (params: string) => new URL(`/settings?tab=integraciones&${params}`, origin);
 
-  if (error || !code || !tenantId) {
-    console.error('Google OAuth callback error or missing parameters:', error);
-    return NextResponse.redirect(settingsUrl('error=google_auth_failed'));
+  const cookieStore = await cookies();
+  const savedState = cookieStore.get('google_oauth_state')?.value;
+
+  if (error || !code || !stateParam || !savedState || stateParam !== savedState) {
+    console.error('Google OAuth CSRF validation failed or error received:', { error, stateParam, savedState });
+    return NextResponse.redirect(settingsUrl('error=google_csrf_invalid'));
   }
+
+  const [stateTenantId] = stateParam.split(':');
+  if (!session?.user?.tenantId || session.user.tenantId !== stateTenantId) {
+    console.error('Google OAuth session tenant mismatch');
+    return NextResponse.redirect(settingsUrl('error=google_auth_unauthorized'));
+  }
+
+  const tenantId = session.user.tenantId;
 
   const settings = await db.tenantSettings.findUnique({
     where: { tenantId },
@@ -52,28 +66,30 @@ export async function GET(req: Request) {
     const tokens = await tokenRes.json();
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
 
-    // Save tokens in TenantSettings
+    const encryptedAccessToken = encryptIfPresent(tokens.access_token);
+    const encryptedRefreshToken = encryptIfPresent(tokens.refresh_token);
+
+    // Save tokens securely in TenantSettings
     await db.tenantSettings.upsert({
       where: { tenantId },
       create: {
         tenantId,
-        googleAccessToken: tokens.access_token,
-        googleRefreshToken: tokens.refresh_token || null,
+        googleAccessToken: encryptedAccessToken,
+        ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
         googleTokenExpiresAt: expiresAt,
         googleCalendarEnabled: true,
       },
       update: {
-        googleAccessToken: tokens.access_token,
-        ...(tokens.refresh_token && { googleRefreshToken: tokens.refresh_token }),
+        googleAccessToken: encryptedAccessToken,
+        ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
         googleTokenExpiresAt: expiresAt,
         googleCalendarEnabled: true,
       },
     });
 
-    // The initial full sync is triggered once, from Settings, after this
-    // redirect lands — doing it here too would race the same tenant's
-    // calendar wipe/rebuild from two places and produce duplicates.
-    return NextResponse.redirect(settingsUrl('google_connected=true'));
+    const res = NextResponse.redirect(settingsUrl('google_connected=true'));
+    res.cookies.delete('google_oauth_state');
+    return res;
   } catch (err) {
     console.error('Exception during Google OAuth callback:', err);
     return NextResponse.redirect(settingsUrl('error=google_oauth_exception'));

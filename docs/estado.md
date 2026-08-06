@@ -79,7 +79,9 @@ protección, RBAC con matriz granular por módulo (`server/lib/permissions.ts`) 
 `permissionProcedure(module, action)` aplicado en todos los routers.
 
 **Routers** — auth, dashboard, clients, visits, jobs, requests, transactions,
-notes, users, tenant, history, import. Stub todavía: `ai`, superadmin.
+notes, users, tenant, history, import, integrations, subscription, superadmin, ai, portal.
+
+**Auditoría y Seguridad (Agosto 2026)** — Se eliminó `/api/debug-calendar`, se aseguró el feed iCal requiriendo token y filtrando `deletedAt`, se protegió la autenticación Google OAuth con CSRF nonce + cookies HTTP-Only y encriptación de tokens en BD, se restringió `changePlan` a `ownerProcedure`, y se configuró `vitest` con alias `@/`.
 
 **Trabajo (`Job`) es una entidad.** Una fila por trabajo multi-visita; las
 visitas le pertenecen vía `Visit.jobId`. El trabajo manda sobre cuántas

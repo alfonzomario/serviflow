@@ -10,32 +10,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
 
-    let tenantRow: { id: string; name: string; slug: string } | null = null;
-    if (token) {
-      const rows = await db.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
-        SELECT id::text, name, slug FROM tenants WHERE slug = ${token} OR id::text = ${token} LIMIT 1
-      `;
-      tenantRow = rows[0] || null;
+    if (!token || typeof token !== 'string' || token.trim().length === 0) {
+      return new NextResponse('Token iCal requerido', { status: 401 });
     }
 
-    if (!tenantRow) {
-      const rows = await db.$queryRaw<Array<{ id: string; name: string; slug: string }>>`
-        SELECT id::text, name, slug FROM tenants WHERE status = 'ACTIVE' LIMIT 1
-      `;
-      tenantRow = rows[0] || null;
-    }
-
-    if (!tenantRow) {
-      return new NextResponse('Tenant no encontrado', { status: 404 });
-    }
-
-    const tenantSettings = await db.tenantSettings.findUnique({
-      where: { tenantId: tenantRow.id },
-      select: { googleCalendarEnabled: true },
+    const settings = await db.tenantSettings.findFirst({
+      where: { icalFeedToken: token.trim() },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true },
+        },
+      },
     });
 
-    // If direct OAuth sync is enabled, return empty iCal feed to auto-clear duplicate old gray events in Google Calendar
-    if (tenantSettings?.googleCalendarEnabled) {
+    if (!settings || !settings.tenant || settings.tenant.status !== 'ACTIVE') {
+      return new NextResponse('Feed iCal no encontrado o inactivo', { status: 404 });
+    }
+
+    const tenantRow = settings.tenant;
+
+    // If direct OAuth sync is enabled, return empty iCal feed
+    if (settings.googleCalendarEnabled) {
       const emptyIcs = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
@@ -61,6 +56,7 @@ export async function GET(request: NextRequest) {
     const visits = await db.visit.findMany({
       where: {
         tenantId: tenantRow.id,
+        deletedAt: null,
         status: { not: 'CANCELLED' },
         scheduledAt: { gte: threeMonthsAgo },
       },

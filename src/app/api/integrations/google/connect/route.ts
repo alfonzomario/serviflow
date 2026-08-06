@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/server/auth';
 import { db } from '@/server/db';
+import crypto from 'crypto';
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -33,6 +34,9 @@ export async function GET(req: Request) {
     'profile',
   ].join(' ');
 
+  const nonce = crypto.randomBytes(24).toString('hex');
+  const statePayload = `${session.user.tenantId}:${nonce}`;
+
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   googleAuthUrl.searchParams.set('client_id', clientId);
   googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
@@ -40,7 +44,16 @@ export async function GET(req: Request) {
   googleAuthUrl.searchParams.set('scope', scope);
   googleAuthUrl.searchParams.set('access_type', 'offline');
   googleAuthUrl.searchParams.set('prompt', 'consent');
-  googleAuthUrl.searchParams.set('state', session.user.tenantId);
+  googleAuthUrl.searchParams.set('state', statePayload);
 
-  return NextResponse.redirect(googleAuthUrl.toString());
+  const res = NextResponse.redirect(googleAuthUrl.toString());
+  res.cookies.set('google_oauth_state', statePayload, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 900, // 15 mins
+  });
+
+  return res;
 }
