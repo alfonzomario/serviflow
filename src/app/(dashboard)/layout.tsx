@@ -41,7 +41,7 @@ export default function DashboardLayout({
   }
 
   // A business that has not been through the wizard yet gets sent there once.
-  const tenant = trpc.tenant.current.useQuery()
+  const tenant = trpc.tenant.current.useQuery(undefined, { staleTime: 5 * 60 * 1000 })
   const needsOnboarding = tenant.data ? !tenant.data.settings?.onboardedAt : false
 
   useEffect(() => {
