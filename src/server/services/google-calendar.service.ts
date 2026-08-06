@@ -184,6 +184,92 @@ export async function deleteServiFlowCalendar(tenantId: string) {
   }
 }
 
+/**
+ * Live round-trip against Google, bypassing every cache, so a broken
+ * connection shows its real cause instead of failing silently — every other
+ * sync path here only logs to the server console, which isn't visible from
+ * Settings. Forces a fresh token refresh (catches a bad/rotated Client
+ * Secret) and then actually calls the Calendar API with it (catches missing
+ * scopes, a revoked grant, or the API not being enabled on the project).
+ */
+export async function testGoogleCalendarConnection(
+  tenantId: string
+): Promise<{ ok: boolean; message: string }> {
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+
+  if (!settings?.googleRefreshToken) {
+    return { ok: false, message: "No hay ningún refresh token guardado — la conexión con Google nunca llegó a completarse." };
+  }
+  if (!settings.googleCalendarEnabled) {
+    return { ok: false, message: "Hay un token guardado pero la sincronización está deshabilitada (googleCalendarEnabled = false)." };
+  }
+
+  const clientId = (settings.googleClientId || process.env.GOOGLE_CLIENT_ID || "").trim();
+  let clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
+  let secretSource = clientSecret ? "la variable de entorno GOOGLE_CLIENT_SECRET" : "";
+  if (!clientSecret && settings.googleClientSecretEncrypted) {
+    clientSecret = (decryptIfPresent(settings.googleClientSecretEncrypted) || "").trim();
+    secretSource = clientSecret ? "el valor guardado en Settings" : "";
+  }
+
+  if (!clientId) {
+    return { ok: false, message: "No hay Google Client ID configurado: ni en Settings ni en la variable de entorno GOOGLE_CLIENT_ID." };
+  }
+  if (!clientSecret) {
+    return {
+      ok: false,
+      message: "No hay Google Client Secret disponible: no está en GOOGLE_CLIENT_SECRET y no se pudo desencriptar el guardado en Settings (si ENCRYPTION_KEY cambió desde que se guardó, quedó ilegible — hay que reconectar).",
+    };
+  }
+
+  let accessToken: string;
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: settings.googleRefreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+    if (!tokenRes.ok) {
+      const body = await tokenRes.text();
+      return {
+        ok: false,
+        message: `Google rechazó el refresh del token (usando ${secretSource}): HTTP ${tokenRes.status} — ${body.slice(0, 300)}`,
+      };
+    }
+    const data = await tokenRes.json();
+    if (!data.access_token) {
+      return { ok: false, message: "Google respondió 200 pero sin access_token en el body — respuesta inesperada." };
+    }
+    accessToken = data.access_token;
+  } catch (err: any) {
+    return { ok: false, message: `Error de red pidiendo el token a Google: ${err?.message || err}` };
+  }
+
+  try {
+    const calendarId = settings.googleCalendarId || (await getOrCreateServiFlowCalendar(accessToken, tenantId));
+    const calRes = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!calRes.ok) {
+      const body = await calRes.text();
+      return {
+        ok: false,
+        message: `El token es válido, pero la Calendar API respondió HTTP ${calRes.status} al pedir el calendario "${calendarId}": ${body.slice(0, 300)}`,
+      };
+    }
+    const cal = await calRes.json();
+    return { ok: true, message: `Todo OK: token válido y calendario "${cal.summary}" accesible.` };
+  } catch (err: any) {
+    return { ok: false, message: `Error de red hablando con la Calendar API: ${err?.message || err}` };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Paginated event helpers
 // ---------------------------------------------------------------------------

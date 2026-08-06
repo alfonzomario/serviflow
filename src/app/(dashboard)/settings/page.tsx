@@ -444,6 +444,14 @@ function IntegracionesTab() {
     }
   }, [gcal.data])
 
+  const testGcal = trpc.integrations.testGoogleCalendarConnection.useMutation({
+    onSuccess: (res) => {
+      if (res.ok) toast.success(res.message)
+      else toast.error(res.message, { duration: 15000 })
+    },
+    onError: (e) => toast.error(`No se pudo probar la conexión: ${e.message}`, { duration: 15000 }),
+  })
+
   const resyncGcal = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
     onSuccess: () => {
       toast.success("Reseteo iniciado en segundo plano. Los eventos se recrean en los próximos minutos.")
@@ -552,6 +560,15 @@ function IntegracionesTab() {
 
             {gcal.data?.connected ? (
               <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-bold"
+                  disabled={testGcal.isPending}
+                  onClick={() => testGcal.mutate()}
+                >
+                  {testGcal.isPending ? "Probando..." : "Probar conexión"}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

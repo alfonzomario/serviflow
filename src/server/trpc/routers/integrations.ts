@@ -5,6 +5,7 @@ import {
   nuclearResetGoogleCalendar,
   updateGoogleCalendarAppearance,
   deleteServiFlowCalendar,
+  testGoogleCalendarConnection,
 } from '../../services/google-calendar.service';
 import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from '../../../lib/googleCalendarColors';
 import crypto from 'crypto';
@@ -47,6 +48,11 @@ export const integrationsRouter = router({
       await updateGoogleCalendarAppearance(ctx.tenantId, input);
       return { success: true };
     }),
+
+  /** Live round-trip against Google — surfaces the real failure reason instead of a silent server-log-only error. */
+  testGoogleCalendarConnection: ownerProcedure.mutation(async ({ ctx }) => {
+    return testGoogleCalendarConnection(ctx.tenantId);
+  }),
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
     // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
