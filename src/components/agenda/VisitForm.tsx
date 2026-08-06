@@ -18,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ClientCombobox } from "@/components/shared/ClientCombobox"
+import { ClientForm } from "@/components/clients/ClientForm"
 import {
   Select,
   SelectContent,
@@ -262,14 +264,15 @@ export function VisitForm({
   const utils = trpc.useUtils()
   const labels = useTenantLabels()
 
-  const clients = trpc.clients.options.useQuery(undefined, { enabled: open })
-  const operators = trpc.users.assignable.useQuery(undefined, { enabled: open })
-  const serviceTypes = trpc.tenant.serviceTypes.useQuery(undefined, { enabled: open })
+  const clients = trpc.clients.options.useQuery(undefined, { enabled: open, staleTime: 5 * 60 * 1000 })
+  const operators = trpc.users.assignable.useQuery(undefined, { enabled: open, staleTime: 5 * 60 * 1000 })
+  const serviceTypes = trpc.tenant.serviceTypes.useQuery(undefined, { enabled: open, staleTime: 5 * 60 * 1000 })
   const existingVisit = trpc.visits.getById.useQuery(
     { id: editingId! },
     { enabled: open && Boolean(editingId) }
   )
 
+  const [createClientOpen, setCreateClientOpen] = React.useState(false)
   const [values, setValues] = React.useState<VisitFormValues>(() => emptyValues())
   const [error, setError] = React.useState<string | null>(null)
   // Opening a multi-visit job from here: this visit becomes its application 1.
@@ -468,7 +471,8 @@ export function VisitForm({
     createVisit.isPending || updateVisit.isPending || updateStatus.isPending
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-2xl border border-border bg-card shadow-2xl flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar visita" : "Nueva visita"}</DialogTitle>
@@ -482,18 +486,12 @@ export function VisitForm({
         <form onSubmit={onSubmit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="clientId">Cliente</Label>
-            <Select value={values.clientId} onValueChange={(value) => set("clientId", value)}>
-              <SelectTrigger id="clientId">
-                <SelectValue placeholder="Elegí un cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.data?.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ClientCombobox
+              value={values.clientId}
+              onChange={(value) => set("clientId", value)}
+              placeholder="Buscar cliente por nombre completo o dirección..."
+              onAddNewClient={() => setCreateClientOpen(true)}
+            />
 
             {(() => {
               const selectedClient = clients.data?.find((c) => c.id === values.clientId);
@@ -770,5 +768,8 @@ export function VisitForm({
         </form>
       </DialogContent>
     </Dialog>
+
+    <ClientForm open={createClientOpen} onOpenChange={setCreateClientOpen} />
+    </>
   )
 }

@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import { ClientCombobox } from "@/components/shared/ClientCombobox"
+
 interface RequestFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -30,8 +32,8 @@ interface RequestFormProps {
 
 export function RequestForm({ open, onOpenChange }: RequestFormProps) {
   const utils = trpc.useUtils()
-  const clients = trpc.clients.options.useQuery(undefined, { enabled: open })
-  const serviceTypes = trpc.tenant.serviceTypes.useQuery(undefined, { enabled: open })
+  const clients = trpc.clients.options.useQuery(undefined, { enabled: open, staleTime: 5 * 60 * 1000 })
+  const serviceTypes = trpc.tenant.serviceTypes.useQuery(undefined, { enabled: open, staleTime: 5 * 60 * 1000 })
 
   const [clientId, setClientId] = React.useState("")
   const [urgency, setUrgency] = React.useState("MEDIUM")
@@ -90,18 +92,11 @@ export function RequestForm({ open, onOpenChange }: RequestFormProps) {
         <form onSubmit={onSubmit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="client">Cliente</Label>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger id="client">
-                <SelectValue placeholder="Elegí un cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.data?.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ClientCombobox
+              value={clientId}
+              onChange={setClientId}
+              placeholder="Buscar cliente por nombre completo o dirección..."
+            />
           </div>
 
           <div className="grid gap-2">

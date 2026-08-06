@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 /** Delays propagating a fast-changing value (search boxes, sliders). */
-export function useDebounce<T>(value: T, delayMs = 300): T {
+export function useDebounce<T>(value: T, delayMs = 150): T {
   const [debounced, setDebounced] = useState(value)
 
   useEffect(() => {

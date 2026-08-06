@@ -58,10 +58,12 @@ interface TransactionFormProps {
   } | null
 }
 
+import { ClientCombobox } from "@/components/shared/ClientCombobox"
+
 export function TransactionForm({ open, onOpenChange, transaction }: TransactionFormProps) {
   const isEditing = Boolean(transaction)
   const utils = trpc.useUtils()
-  const clients = trpc.clients.options.useQuery(undefined, { enabled: open && !isEditing })
+  const clients = trpc.clients.options.useQuery(undefined, { enabled: open && !isEditing, staleTime: 5 * 60 * 1000 })
 
   const [type, setType] = React.useState<"INCOME" | "EXPENSE">("EXPENSE")
   const [amount, setAmount] = React.useState("")
@@ -240,19 +242,11 @@ export function TransactionForm({ open, onOpenChange, transaction }: Transaction
           {!isEditing && (
             <div className="grid gap-2">
               <Label htmlFor="client">Cliente (opcional)</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger id="client">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CLIENT}>Sin cliente</SelectItem>
-                  {clients.data?.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClientCombobox
+                value={clientId === NO_CLIENT ? "" : clientId}
+                onChange={(val) => setClientId(val || NO_CLIENT)}
+                placeholder="Sin cliente (general) o buscar cliente por nombre completo..."
+              />
             </div>
           )}
 

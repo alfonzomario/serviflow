@@ -59,7 +59,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   // Se espera a que deje de tipear para no pegarle a la base en cada tecla.
   const [debounced, setDebounced] = React.useState("")
   React.useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query.trim()), 250)
+    const timer = setTimeout(() => setDebounced(query.trim()), 150)
     return () => clearTimeout(timer)
   }, [query])
 
@@ -68,7 +68,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const results = trpc.clients.list.useQuery(
     { page: 1, limit: 6, search: debounced },
-    { enabled: canSeeClients && debounced.length >= 2 }
+    { enabled: canSeeClients && debounced.length >= 1 }
   )
 
   // La campanita muestra lo que realmente venció, no un punto fijo.
@@ -121,7 +121,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         {/* Search */}
         {canSeeClients && (
-          <Popover open={open && debounced.length >= 2} onOpenChange={setOpen}>
+          <Popover open={open && debounced.length >= 1} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <div className="relative">
                 <Search
