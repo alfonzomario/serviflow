@@ -362,6 +362,30 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       });
     }
 
+    // 0. LIMPIEZA DE CALENDARIOS FANTASMA (Si el usuario tiene 20 calendarios "ServiFlow" creados por error)
+    try {
+      const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (calListRes.ok) {
+        const data = await calListRes.json();
+        const cals = (data.items || []).filter((c: any) => c.summary === 'ServiFlow');
+        if (cals.length > 1) {
+          console.log(`Found ${cals.length} ServiFlow calendars. Nuking ghosts...`);
+          // Dejamos 1 vivo (el índice 0) y borramos el resto
+          for (let i = 1; i < cals.length; i++) {
+            await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cals[i].id)}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${accessToken}` }
+            }).catch(console.error);
+            await new Promise(r => setTimeout(r, 1500)); // 1.5s delay to avoid rate limit
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error limpiando calendarios fantasma:', e);
+    }
+
     // 1. Get or Create the single ServiFlow calendar (this doesn't trigger deletion limits)
     const targetCalendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
     if (!targetCalendarId) {
