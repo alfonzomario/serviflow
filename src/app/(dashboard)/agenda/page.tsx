@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventDropArg, EventContentArg } from '@fullcalendar/core';
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
-import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, CheckCircle2, Clock, XCircle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/lib/trpc';
@@ -214,44 +214,6 @@ export default function AgendaPage() {
     );
   }
 
-  const googleStatus = trpc.integrations.getGoogleCalendarStatus.useQuery();
-
-  const resetGoogleCalendar = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
-    onSuccess: () => {
-      toast.success("Limpieza iniciada en segundo plano. Los eventos se re-sincronizarán en los próximos minutos.");
-    },
-    onError: (error) => {
-      toast.error(`Error al reiniciar: ${error.message}`);
-    }
-  });
-
-  const disconnectGoogleCalendar = trpc.integrations.disconnectGoogleCalendar.useMutation({
-    onSuccess: () => {
-      toast.success("Desconexión exitosa. El calendario ha sido olvidado localmente.");
-      googleStatus.refetch();
-    },
-    onError: (error) => {
-      toast.error(`Error al desconectar: ${error.message}`);
-    }
-  });
-
-  // Check URL query parameters for OAuth redirect status
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('google_connected') === 'true') {
-      toast.success('¡Google Calendar conectado exitosamente! Sincronizando tus visitas...');
-      resetGoogleCalendar.mutate();
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (urlParams.get('error') === 'google_credentials_missing') {
-      toast.error('Google Client ID no configurado. Para activar la conexión directa con Google, configurá las credenciales en Ajustes -> Integraciones o en el archivo .env');
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (urlParams.get('error')) {
-      toast.error('No se pudo completar la conexión con Google Calendar.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -262,57 +224,6 @@ export default function AgendaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {googleStatus.data?.connected ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-xs">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                Google Calendar Conectado
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs font-bold gap-1.5 border-orange-500/30 text-orange-500 hover:bg-orange-500/10 shadow-xs"
-                disabled={resetGoogleCalendar.isPending}
-                onClick={() => {
-                  if (window.confirm('¿Estás seguro? Esto eliminará todos los eventos viejos y recreará el calendario ServiFlow desde cero.')) {
-                    resetGoogleCalendar.mutate();
-                  }
-                }}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${resetGoogleCalendar.isPending ? "animate-spin" : ""}`} />
-                {resetGoogleCalendar.isPending ? "Procesando..." : "Resetear Calendar"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs font-bold gap-1.5 border-red-500/30 text-red-500 hover:bg-red-500/10 shadow-xs"
-                disabled={disconnectGoogleCalendar.isPending}
-                onClick={() => {
-                  if (window.confirm('¿Seguro que querés desconectar Google Calendar? Esto borrará la conexión de ServiFlow pero los eventos en Google quedarán intactos (deberás borrarlos a mano).')) {
-                    disconnectGoogleCalendar.mutate();
-                  }
-                }}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${disconnectGoogleCalendar.isPending ? "animate-spin" : "hidden"}`} />
-                {disconnectGoogleCalendar.isPending ? "Desconectando..." : "Desconectar"}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md transition-all hover:scale-105"
-              onClick={() => {
-                if (!googleStatus.data?.hasCredentials) {
-                  toast.error("Primero ingresá el Client ID y Client Secret en Ajustes -> Integraciones.");
-                  window.location.href = "/settings?tab=integraciones";
-                  return;
-                }
-                window.location.href = '/api/integrations/google/connect';
-              }}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              Conectar Google Calendar
-            </Button>
-          )}
           <Button onClick={() => openNewVisit()}>
             <Plus className="mr-2 h-4 w-4" />
             Nueva visita

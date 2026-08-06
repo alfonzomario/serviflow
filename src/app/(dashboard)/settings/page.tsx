@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Save } from "lucide-react"
 import { toast } from "sonner"
+import { useSearchParams } from "next/navigation"
 
 import { trpc } from "@/lib/trpc"
 import { Button } from "@/components/ui/button"
@@ -13,8 +14,12 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { GOOGLE_CALENDAR_EVENT_COLORS } from "@/lib/googleCalendarColors"
 
-export default function SettingsPage() {
+function SettingsPageInner() {
+  const searchParams = useSearchParams()
+  const [tab, setTab] = React.useState(() => searchParams.get("tab") || "negocio")
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -26,7 +31,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="negocio" className="w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="negocio">Negocio</TabsTrigger>
           <TabsTrigger value="marca">Marca</TabsTrigger>
@@ -52,6 +57,14 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <SettingsPageInner />
+    </React.Suspense>
   )
 }
 
@@ -431,9 +444,16 @@ function IntegracionesTab() {
     }
   }, [gcal.data])
 
+  const resyncGcal = trpc.integrations.purgeAndCleanGoogleCalendar.useMutation({
+    onSuccess: () => {
+      toast.success("Reseteo iniciado en segundo plano. Los eventos se recrean en los próximos minutos.")
+    },
+    onError: (e) => toast.error(`Error al resetear: ${e.message}`),
+  })
+
   const disconnectGcal = trpc.integrations.disconnectGoogleCalendar.useMutation({
     onSuccess: () => {
-      toast.success("Google Calendar desconectado")
+      toast.success("Google Calendar desconectado y calendario borrado de ambos lados")
       utils.integrations.getGoogleCalendarStatus.invalidate()
     },
     onError: (e) => toast.error(e.message),
@@ -451,6 +471,59 @@ function IntegracionesTab() {
       toast.error("Error al guardar credenciales")
     }
   }
+
+  // --- Appearance: calendar name & event color shown in Google ---
+  const [appearanceForm, setAppearanceForm] = React.useState({ calendarName: "", colorId: "" })
+  React.useEffect(() => {
+    if (gcal.data && !appearanceForm.calendarName) {
+      setAppearanceForm({ calendarName: gcal.data.calendarName, colorId: gcal.data.colorId })
+    }
+  }, [gcal.data])
+
+  const updateAppearance = trpc.integrations.updateGoogleCalendarAppearance.useMutation({
+    onSuccess: () => {
+      toast.success("Apariencia guardada")
+      utils.integrations.getGoogleCalendarStatus.invalidate()
+    },
+    onError: (e) => toast.error(`Error al guardar apariencia: ${e.message}`),
+  })
+
+  async function onSaveAppearance() {
+    if (!appearanceForm.calendarName.trim()) {
+      toast.error("El nombre del calendario no puede estar vacío")
+      return
+    }
+    await updateAppearance.mutateAsync({
+      calendarName: appearanceForm.calendarName.trim(),
+      colorId: appearanceForm.colorId,
+    })
+  }
+
+  // --- Handle the redirect back from Google's OAuth flow (lands here with ?google_connected / ?error) ---
+  const handledRedirect = React.useRef(false)
+  React.useEffect(() => {
+    if (handledRedirect.current) return
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const errorMessages: Record<string, string> = {
+      google_credentials_missing: "Google Client ID no configurado. Ingresá el Client ID y Client Secret abajo antes de conectar.",
+      google_auth_failed: "No se pudo completar la conexión con Google Calendar.",
+      google_token_exchange_failed: "Google rechazó el intercambio de tokens. Revisá el Client ID y Client Secret.",
+      google_oauth_exception: "Ocurrió un error inesperado conectando con Google Calendar.",
+    }
+    if (params.get("google_connected") === "true") {
+      handledRedirect.current = true
+      toast.success("¡Google Calendar conectado! Sincronizando tus visitas...")
+      resyncGcal.mutate()
+      utils.integrations.getGoogleCalendarStatus.invalidate()
+      window.history.replaceState({}, "", window.location.pathname + "?tab=integraciones")
+    } else if (params.get("error")) {
+      handledRedirect.current = true
+      toast.error(errorMessages[params.get("error") || ""] || "No se pudo completar la conexión con Google Calendar.")
+      window.history.replaceState({}, "", window.location.pathname + "?tab=integraciones")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -478,15 +551,34 @@ function IntegracionesTab() {
             </div>
 
             {gcal.data?.connected ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs text-destructive hover:bg-destructive/10 border-destructive/30 font-bold"
-                disabled={disconnectGcal.isPending}
-                onClick={() => disconnectGcal.mutate()}
-              >
-                Desconectar Google Calendar
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-bold border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
+                  disabled={resyncGcal.isPending}
+                  onClick={() => {
+                    if (window.confirm("¿Estás seguro? Esto eliminará todos los eventos y los vuelve a crear desde cero en tu calendario de Google.")) {
+                      resyncGcal.mutate()
+                    }
+                  }}
+                >
+                  {resyncGcal.isPending ? "Reseteando..." : "Resetear y resincronizar"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-destructive hover:bg-destructive/10 border-destructive/30 font-bold"
+                  disabled={disconnectGcal.isPending}
+                  onClick={() => {
+                    if (window.confirm("¿Seguro que querés desconectar Google Calendar? Se borra el calendario dedicado (y todos sus eventos) tanto de ServiFlow como de tu cuenta de Google. Los eventos que hayas creado a mano en tu calendario principal no se tocan.")) {
+                      disconnectGcal.mutate()
+                    }
+                  }}
+                >
+                  {disconnectGcal.isPending ? "Desconectando..." : "Desconectar"}
+                </Button>
+              </div>
             ) : (
               <Button
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md"
@@ -514,6 +606,61 @@ function IntegracionesTab() {
                 Conectar con Google
               </Button>
             )}
+          </div>
+
+          {/* Appearance: calendar name & event color as they show up in Google */}
+          <div className="pt-4 border-t border-border grid gap-4">
+            <div className="flex flex-col gap-1">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Cómo se ve en Google Calendar
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Nombre del calendario dedicado y color de los eventos que ServiFlow crea ahí.
+                {gcal.data?.connected ? " Cambiar el nombre lo renombra en Google al guardar." : " Se aplica al calendario dedicado que se crea cuando te conectes."}
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label className="text-xs">Nombre del calendario</Label>
+                <Input
+                  value={appearanceForm.calendarName}
+                  onChange={(e) => setAppearanceForm((c) => ({ ...c, calendarName: e.target.value }))}
+                  placeholder="ServiFlow"
+                  className="text-xs"
+                  maxLength={100}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-xs">Color de los eventos</Label>
+                <div className="flex flex-wrap gap-2">
+                  {GOOGLE_CALENDAR_EVENT_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      title={c.name}
+                      aria-label={c.name}
+                      onClick={() => setAppearanceForm((f) => ({ ...f, colorId: c.id }))}
+                      className={`h-7 w-7 rounded-full border-2 transition-all ${
+                        appearanceForm.colorId === c.id
+                          ? "border-foreground scale-110 shadow-md"
+                          : "border-transparent hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={onSaveAppearance}
+              disabled={updateAppearance.isPending}
+              variant="outline"
+              size="sm"
+              className="w-fit text-xs font-semibold"
+            >
+              Guardar apariencia
+            </Button>
           </div>
 
           {/* Form to configure Google Client ID & Secret */}

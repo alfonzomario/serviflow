@@ -450,6 +450,8 @@ model TenantSettings {
   googleCalendarEnabled   Boolean  @default(false) @map("google_calendar_enabled")
   googleClientId          String?  @map("google_client_id")
   googleClientSecretEncrypted String? @map("google_client_secret_encrypted")
+  googleCalendarName      String?  @default("ServiFlow") @map("google_calendar_name") @db.VarChar(100)
+  googleCalendarColorId   String?  @default("9") @map("google_calendar_color_id") @db.VarChar(4)
   icalFeedToken           String?  @unique @map("ical_feed_token") @db.VarChar(64)
 
   // ── WhatsApp propio del tenant ─────────────────────────

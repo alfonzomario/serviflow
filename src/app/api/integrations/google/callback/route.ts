@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/db';
 import { decryptIfPresent } from '@/server/lib/encryption';
-import { syncVisitToGoogle } from '@/server/services/google-calendar.service';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -12,10 +11,11 @@ export async function GET(req: Request) {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
   const protocol = req.headers.get('x-forwarded-proto') || (req.url.startsWith('https') ? 'https' : 'http');
   const origin = `${protocol}://${host}`;
+  const settingsUrl = (params: string) => new URL(`/settings?tab=integraciones&${params}`, origin);
 
   if (error || !code || !tenantId) {
     console.error('Google OAuth callback error or missing parameters:', error);
-    return NextResponse.redirect(new URL('/agenda?error=google_auth_failed', origin));
+    return NextResponse.redirect(settingsUrl('error=google_auth_failed'));
   }
 
   const settings = await db.tenantSettings.findUnique({
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('Failed to exchange code for tokens:', await tokenRes.text());
-      return NextResponse.redirect(new URL('/agenda?error=google_token_exchange_failed', origin));
+      return NextResponse.redirect(settingsUrl('error=google_token_exchange_failed'));
     }
 
     const tokens = await tokenRes.json();
@@ -70,23 +70,12 @@ export async function GET(req: Request) {
       },
     });
 
-    // Auto-sync all current active visits in background upon successful connection
-    db.visit.findMany({
-      where: {
-        tenantId,
-        status: { not: 'CANCELLED' },
-        scheduledAt: { not: null },
-      },
-      select: { id: true },
-    }).then((visits) => {
-      for (const v of visits) {
-        syncVisitToGoogle(v.id, tenantId).catch(console.error);
-      }
-    }).catch(console.error);
-
-    return NextResponse.redirect(new URL('/agenda?google_connected=true', origin));
+    // The initial full sync is triggered once, from Settings, after this
+    // redirect lands — doing it here too would race the same tenant's
+    // calendar wipe/rebuild from two places and produce duplicates.
+    return NextResponse.redirect(settingsUrl('google_connected=true'));
   } catch (err) {
     console.error('Exception during Google OAuth callback:', err);
-    return NextResponse.redirect(new URL('/agenda?error=google_oauth_exception', origin));
+    return NextResponse.redirect(settingsUrl('error=google_oauth_exception'));
   }
 }

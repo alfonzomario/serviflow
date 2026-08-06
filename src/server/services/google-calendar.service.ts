@@ -1,23 +1,12 @@
 import { db } from "../db";
 import { decryptIfPresent } from "../lib/encryption";
+import { toBuenosAiresOffsetString, BUENOS_AIRES_TIMEZONE } from "../lib/timezone";
+import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from "../../lib/googleCalendarColors";
 
-/**
- * FORMATEADOR FUERTE DE ZONA HORARIA
- * Fuerza a que una fecha de Prisma se convierta en un string local crudo ("2026-08-07T09:30:00")
- * reflejando exactamente la hora que el usuario ve en Argentina, ignorando la zona horaria del servidor.
- */
-function toBuenosAiresTimeString(date: Date) {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(date);
-  const p = {} as Record<string, string>;
-  for (const part of parts) p[part.type] = part.value;
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
-}
+/** Tenants currently mid full-reset. Individual syncs bail out while this is set — the
+ * reset reads all active visits at the end anyway, so nothing is lost, and skipping avoids
+ * racing a wipe with a create/update against the same calendar. */
+const activeSyncs = new Set<string>();
 
 /** Helper to get a valid Google Access Token, refreshing it if expired using the refresh token */
 async function getValidAccessToken(tenantId: string): Promise<string | null> {
@@ -86,12 +75,14 @@ async function getValidAccessToken(tenantId: string): Promise<string | null> {
 // Calendar Management
 // ---------------------------------------------------------------------------
 
-/** Finds or creates the dedicated 'ServiFlow' sub-calendar */
+/** Finds or creates the tenant's dedicated Google sub-calendar, named per their settings. */
 export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId: string): Promise<string> {
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
   if (settings?.googleCalendarId) {
     return settings.googleCalendarId;
   }
+
+  const calendarName = settings?.googleCalendarName || DEFAULT_GOOGLE_CALENDAR_NAME;
 
   try {
     const listRes = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
@@ -100,7 +91,7 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
 
     if (listRes.ok) {
       const data = await listRes.json();
-      const existing = (data.items || []).find((c: any) => c.summary === "ServiFlow");
+      const existing = (data.items || []).find((c: any) => c.summary === calendarName);
       if (existing?.id) {
         await db.tenantSettings.update({
           where: { tenantId },
@@ -116,7 +107,7 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ summary: "ServiFlow", timeZone: "America/Argentina/Buenos_Aires" }),
+      body: JSON.stringify({ summary: calendarName, timeZone: BUENOS_AIRES_TIMEZONE }),
     });
 
     if (createRes.ok) {
@@ -130,10 +121,67 @@ export async function getOrCreateServiFlowCalendar(accessToken: string, tenantId
       }
     }
   } catch (err) {
-    console.error("Error getting/creating ServiFlow sub-calendar:", err);
+    console.error("Error getting/creating dedicated Google sub-calendar:", err);
   }
 
   return "primary";
+}
+
+/** Renames the tenant's Google sub-calendar to match `googleCalendarName`, and/or persists a new event color. Safe to call whether or not Google is currently connected. */
+export async function updateGoogleCalendarAppearance(
+  tenantId: string,
+  updates: { calendarName?: string; colorId?: string }
+) {
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+
+  await db.tenantSettings.upsert({
+    where: { tenantId },
+    create: {
+      tenantId,
+      ...(updates.calendarName !== undefined && { googleCalendarName: updates.calendarName }),
+      ...(updates.colorId !== undefined && { googleCalendarColorId: updates.colorId }),
+    },
+    update: {
+      ...(updates.calendarName !== undefined && { googleCalendarName: updates.calendarName }),
+      ...(updates.colorId !== undefined && { googleCalendarColorId: updates.colorId }),
+    },
+  });
+
+  if (updates.calendarName && settings?.googleCalendarId && settings.googleCalendarId !== "primary") {
+    const accessToken = await getValidAccessToken(tenantId);
+    if (accessToken) {
+      try {
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.googleCalendarId)}`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ summary: updates.calendarName }),
+          }
+        );
+      } catch (err) {
+        console.error("Error renaming Google calendar:", err);
+      }
+    }
+  }
+}
+
+/** Deletes the tenant's dedicated Google sub-calendar entirely (all its events go with it) and forgets its id locally. Used by disconnect to undo both sides. */
+export async function deleteServiFlowCalendar(tenantId: string) {
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  if (!settings?.googleCalendarId || settings.googleCalendarId === "primary") return;
+
+  const accessToken = await getValidAccessToken(tenantId);
+  if (!accessToken) return;
+
+  try {
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.googleCalendarId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+  } catch (err) {
+    console.error("Error deleting dedicated Google sub-calendar:", err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,8 +259,12 @@ async function deleteEvents(
 // Single visit sync
 // ---------------------------------------------------------------------------
 
-/** Syncs a single visit to the dedicated ServiFlow Google Calendar */
+/** Syncs a single visit to the tenant's dedicated Google Calendar. */
 export async function syncVisitToGoogle(visitId: string, tenantId: string) {
+  // A full reset is in progress for this tenant — it will re-sync every active
+  // visit itself once it finishes, so bail out instead of racing it.
+  if (activeSyncs.has(tenantId)) return;
+
   const visit = await db.visit.findFirst({
     where: { id: visitId, tenantId },
     include: { client: true, job: true },
@@ -220,24 +272,33 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
 
   if (!visit || !visit.scheduledAt) return;
 
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  if (!settings?.googleCalendarEnabled || !settings?.googleRefreshToken) return;
+
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return;
 
   const calendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
+  const colorId = settings.googleCalendarColorId || DEFAULT_GOOGLE_CALENDAR_COLOR_ID;
 
   const startTime = new Date(visit.scheduledAt);
   const durationMs = (visit.durationMinutes || 45) * 60 * 1000;
   const endTime = new Date(startTime.getTime() + durationMs);
 
   const title = `SF - ${visit.client.name}`;
+  const startDateTime = toBuenosAiresOffsetString(startTime);
+  const endDateTime = toBuenosAiresOffsetString(endTime);
 
   const eventPayload = {
     summary: title,
     location: visit.client.address || '',
     description: `Cliente: ${visit.client.name}\nTeléfono: ${visit.client.phone || 'N/I'}\nDirección: ${visit.client.address || 'N/I'}\nNotas: ${visit.notes || 'Sin observaciones'}`,
-    colorId: '9', // Electric Blue (Peacock)
-    start: { dateTime: toBuenosAiresTimeString(startTime), timeZone: 'America/Argentina/Buenos_Aires' },
-    end: { dateTime: toBuenosAiresTimeString(endTime), timeZone: 'America/Argentina/Buenos_Aires' },
+    colorId,
+    // Both an explicit offset (fixes the instant unambiguously) and the IANA
+    // name (so Google displays/handles it correctly) are sent — offset alone
+    // pins the instant regardless of how the accompanying name is treated.
+    start: { dateTime: startDateTime, timeZone: BUENOS_AIRES_TIMEZONE },
+    end: { dateTime: endDateTime, timeZone: BUENOS_AIRES_TIMEZONE },
   };
 
   try {
@@ -263,7 +324,7 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
     // --- DEDUPLICATION: search for existing event with same title & start time ---
     const existingEvents = await fetchAllEvents(accessToken, calendarId);
     const duplicate = existingEvents.find(
-      (e) => e.summary === title && e.start?.dateTime === `${toBuenosAiresTimeString(startTime)}-03:00`
+      (e) => e.summary === title && e.start?.dateTime === startDateTime
     );
 
     if (duplicate) {
@@ -311,7 +372,7 @@ export async function syncVisitToGoogle(visitId: string, tenantId: string) {
   }
 }
 
-/** Deletes an event from the dedicated ServiFlow Google Calendar */
+/** Deletes an event from the tenant's dedicated Google Calendar and forgets its id locally. */
 export async function deleteCalendarEvent(eventId: string, tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return;
@@ -335,9 +396,7 @@ export async function deleteCalendarEvent(eventId: string, tenantId: string) {
 // Full reset & resync
 // ---------------------------------------------------------------------------
 
-const activeSyncs = new Set<string>();
-
-/** Nukes the ServiFlow sub-calendar entirely and recreates it fresh, then re-syncs all visits */
+/** Nukes the tenant's dedicated Google sub-calendar entirely and recreates it fresh, then re-syncs all visits */
 export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { count: 0 };
@@ -347,11 +406,13 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
     console.log('Sincronización ya en curso. Abortando duplicado.');
     return { count: 0 };
   }
-  
+
   activeSyncs.add(tenantId);
   try {
     const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
     let oldCalendarId = settings?.googleCalendarId;
+    const calendarName = settings?.googleCalendarName || DEFAULT_GOOGLE_CALENDAR_NAME;
+    const colorId = settings?.googleCalendarColorId || DEFAULT_GOOGLE_CALENDAR_COLOR_ID;
 
     // FIX FOR STUCK DB LOCK: Si quedó trabado de una corrida anterior, lo limpiamos
     if (oldCalendarId === 'SYNCING') {
@@ -362,16 +423,17 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       });
     }
 
-    // 0. LIMPIEZA DE CALENDARIOS FANTASMA (Si el usuario tiene 20 calendarios "ServiFlow" creados por error)
+    // 0. LIMPIEZA DE CALENDARIOS FANTASMA (Si el usuario tiene varios calendarios
+    // con el mismo nombre creados por error)
     try {
       const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (calListRes.ok) {
         const data = await calListRes.json();
-        const cals = (data.items || []).filter((c: any) => c.summary === 'ServiFlow');
+        const cals = (data.items || []).filter((c: any) => c.summary === calendarName);
         if (cals.length > 1) {
-          console.log(`Found ${cals.length} ServiFlow calendars. Nuking ghosts...`);
+          console.log(`Found ${cals.length} "${calendarName}" calendars. Nuking ghosts...`);
           // Dejamos 1 vivo (el índice 0) y borramos el resto
           for (let i = 1; i < cals.length; i++) {
             await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cals[i].id)}`, {
@@ -386,10 +448,10 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       console.error('Error limpiando calendarios fantasma:', e);
     }
 
-    // 1. Get or Create the single ServiFlow calendar (this doesn't trigger deletion limits)
+    // 1. Get or Create the single dedicated calendar (this doesn't trigger deletion limits)
     const targetCalendarId = await getOrCreateServiFlowCalendar(accessToken, tenantId);
     if (!targetCalendarId) {
-      console.error('Failed to get or create target ServiFlow calendar');
+      console.error('Failed to get or create target Google sub-calendar');
       return { count: 0 };
     }
 
@@ -430,54 +492,51 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
       where: { tenantId, status: { not: 'CANCELLED' }, scheduledAt: { not: null } },
       include: { client: true },
     });
-    
-    // Set newCalendarId for the loop below
-    const newCalendarId = targetCalendarId;
 
-  for (const v of visits) {
-    if (!v.scheduledAt) continue;
-    
-    const startTime = new Date(v.scheduledAt);
-    const durationMs = (v.durationMinutes || 45) * 60 * 1000;
-    const endTime = new Date(startTime.getTime() + durationMs);
-    const title = `SF - ${v.client.name}`;
+    for (const v of visits) {
+      if (!v.scheduledAt) continue;
 
-    const eventPayload = {
-      summary: title,
-      location: v.client.address || '',
-      description: `Cliente: ${v.client.name}\nTeléfono: ${v.client.phone || 'N/I'}\nDirección: ${v.client.address || 'N/I'}\nNotas: ${v.notes || 'Sin observaciones'}`,
-      colorId: '9',
-      start: { dateTime: toBuenosAiresTimeString(startTime), timeZone: 'America/Argentina/Buenos_Aires' },
-      end: { dateTime: toBuenosAiresTimeString(endTime), timeZone: 'America/Argentina/Buenos_Aires' },
-    };
+      const startTime = new Date(v.scheduledAt);
+      const durationMs = (v.durationMinutes || 45) * 60 * 1000;
+      const endTime = new Date(startTime.getTime() + durationMs);
+      const title = `SF - ${v.client.name}`;
 
-    try {
-      const postRes = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalendarId)}/events`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventPayload),
+      const eventPayload = {
+        summary: title,
+        location: v.client.address || '',
+        description: `Cliente: ${v.client.name}\nTeléfono: ${v.client.phone || 'N/I'}\nDirección: ${v.client.address || 'N/I'}\nNotas: ${v.notes || 'Sin observaciones'}`,
+        colorId,
+        start: { dateTime: toBuenosAiresOffsetString(startTime), timeZone: BUENOS_AIRES_TIMEZONE },
+        end: { dateTime: toBuenosAiresOffsetString(endTime), timeZone: BUENOS_AIRES_TIMEZONE },
+      };
+
+      try {
+        const postRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(eventPayload),
+          }
+        );
+        if (postRes.ok) {
+          const data = await postRes.json();
+          await db.visit.update({
+            where: { id: v.id },
+            data: { calendarEventId: data.id },
+          });
         }
-      );
-      if (postRes.ok) {
-        const data = await postRes.json();
-        await db.visit.update({
-          where: { id: v.id },
-          data: { calendarEventId: data.id },
-        });
+      } catch (e) {
+        console.error('Error posting event:', e);
       }
-    } catch (e) {
-      console.error('Error posting event:', e);
+
+      await new Promise((r) => setTimeout(r, 150)); // Fast delay to avoid rate limit
     }
-    
-    await new Promise((r) => setTimeout(r, 150)); // Fast delay to avoid rate limit
-  }
 
     // 6. Save the final calendar ID
     await db.tenantSettings.update({
       where: { tenantId },
-      data: { googleCalendarId: newCalendarId },
+      data: { googleCalendarId: targetCalendarId },
     });
 
     return { count: visits.length };
@@ -487,7 +546,7 @@ export async function cleanAndResyncAllServiFlowEvents(tenantId: string) {
   }
 }
 
-/** NUCLEAR OPTION: Purges ALL ServiFlow events from primary calendar + deletes & recreates ServiFlow sub-calendar */
+/** NUCLEAR OPTION: Purges ALL ServiFlow events from primary calendar + deletes & recreates the dedicated sub-calendar */
 export async function nuclearResetGoogleCalendar(tenantId: string) {
   const accessToken = await getValidAccessToken(tenantId);
   if (!accessToken) return { primaryDeleted: 0, synced: 0 };
@@ -533,7 +592,7 @@ export async function nuclearResetGoogleCalendar(tenantId: string) {
     console.error('Error purging primary calendar:', err);
   }
 
-  // ---- PHASE 2: Nuke & recreate ServiFlow sub-calendar + resync ----
+  // ---- PHASE 2: Nuke & recreate dedicated sub-calendar + resync ----
   const resyncResult = await cleanAndResyncAllServiFlowEvents(tenantId);
 
   return { primaryDeleted, synced: resyncResult.count };

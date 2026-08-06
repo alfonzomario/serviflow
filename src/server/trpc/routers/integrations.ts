@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { router, ownerProcedure } from '../trpc';
 import { encrypt, decrypt, encryptIfPresent, decryptIfPresent } from '../../lib/encryption';
-import { syncVisitToGoogle, nuclearResetGoogleCalendar } from '../../services/google-calendar.service';
+import {
+  nuclearResetGoogleCalendar,
+  updateGoogleCalendarAppearance,
+  deleteServiFlowCalendar,
+} from '../../services/google-calendar.service';
+import { DEFAULT_GOOGLE_CALENDAR_COLOR_ID, DEFAULT_GOOGLE_CALENDAR_NAME } from '../../../lib/googleCalendarColors';
 import crypto from 'crypto';
 
 export const integrationsRouter = router({
@@ -23,10 +28,25 @@ export const integrationsRouter = router({
       hasCredentials: Boolean(clientId && hasSecret),
       googleClientId: clientId || null,
       hasClientSecret: hasSecret,
+      calendarName: settings?.googleCalendarName || DEFAULT_GOOGLE_CALENDAR_NAME,
+      colorId: settings?.googleCalendarColorId || DEFAULT_GOOGLE_CALENDAR_COLOR_ID,
       icalFeedToken: settings?.icalFeedToken || null,
       icalFeedUrl: settings?.icalFeedToken ? `/api/ical/${settings.icalFeedToken}` : null,
     };
   }),
+
+  /** Configures how the tenant's dedicated calendar shows up in Google — its name and event color. */
+  updateGoogleCalendarAppearance: ownerProcedure
+    .input(
+      z.object({
+        calendarName: z.string().trim().min(1).max(100).optional(),
+        colorId: z.string().min(1).max(4).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await updateGoogleCalendarAppearance(ctx.tenantId, input);
+      return { success: true };
+    }),
 
   syncAllVisitsToGoogle: ownerProcedure.mutation(async ({ ctx }) => {
     // Process full wipe and fresh sync in background inside the dedicated ServiFlow sub-calendar
@@ -57,13 +77,19 @@ export const integrationsRouter = router({
   }),
 
   disconnectGoogleCalendar: ownerProcedure.mutation(async ({ ctx }) => {
-    // 1. Limpiar todos los calendarEventId de las visitas
+    // 1. Borrar el calendario dedicado del lado de Google (se lleva todos sus
+    // eventos con él). Requiere hacerse ANTES de limpiar los tokens, porque
+    // necesita un access token válido para autenticar la llamada.
+    await deleteServiFlowCalendar(ctx.tenantId).catch(console.error);
+
+    // 2. Limpiar todos los calendarEventId de las visitas
     await ctx.db.visit.updateMany({
       where: { tenantId: ctx.tenantId },
       data: { calendarEventId: null },
     });
 
-    // 2. Limpiar todos los tokens y credenciales
+    // 3. Limpiar todos los tokens y credenciales de conexión (se conservan el
+    // nombre y color elegidos, para cuando se reconecte)
     await ctx.db.tenantSettings.update({
       where: { tenantId: ctx.tenantId },
       data: {

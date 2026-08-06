@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/server/db';
+import { toBuenosAiresIcsString, BUENOS_AIRES_TIMEZONE } from '@/server/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -69,11 +70,6 @@ export async function GET(request: NextRequest) {
       orderBy: { scheduledAt: 'asc' },
     });
 
-    const formatDateLocal = (d: Date) => {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    };
-
     let icsLines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -81,7 +77,7 @@ export async function GET(request: NextRequest) {
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       `X-WR-CALNAME:ServiFlow - ${tenantRow.name}`,
-      'X-WR-TIMEZONE:America/Argentina/Buenos_Aires',
+      `X-WR-TIMEZONE:${BUENOS_AIRES_TIMEZONE}`,
     ];
 
     for (const visit of visits) {
@@ -100,9 +96,9 @@ export async function GET(request: NextRequest) {
       icsLines.push(
         'BEGIN:VEVENT',
         `UID:visit-${visit.id}@serviflow.app`,
-        `DTSTAMP:${formatDateLocal(new Date())}`,
-        `DTSTART;TZID=America/Argentina/Buenos_Aires:${formatDateLocal(start)}`,
-        `DTEND;TZID=America/Argentina/Buenos_Aires:${formatDateLocal(end)}`,
+        `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+        `DTSTART;TZID=${BUENOS_AIRES_TIMEZONE}:${toBuenosAiresIcsString(start)}`,
+        `DTEND;TZID=${BUENOS_AIRES_TIMEZONE}:${toBuenosAiresIcsString(end)}`,
         `SUMMARY:${title.replace(/[,;\n\r]/g, ' ')}`,
         `LOCATION:${address.replace(/[,;\n\r]/g, ' ')}`,
         `DESCRIPTION:${notes.replace(/[,;\n\r]/g, ' ')}`,
