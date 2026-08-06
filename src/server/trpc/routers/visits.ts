@@ -447,6 +447,12 @@ export const visitsRouter = router({
         data: { deletedAt: new Date() },
       });
 
+      // También eliminamos de finanzas cualquier transacción vinculada a esta visita
+      await ctx.db.transaction.updateMany({
+        where: { visitId: input.id, tenantId: ctx.tenantId },
+        data: { deletedAt: new Date() },
+      });
+
       await recordAudit({
         tenantId: ctx.tenantId,
         userId: ctx.session.user.id,
